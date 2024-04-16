@@ -1,0 +1,793 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="NOC-NOC：面向性能最优的分布式事务（sigmod 24） 1 摘要以前的分布式事务性能最优的工作都致力于研究优化事务的读操作，但忽略了影响写整体性能的关键因素–写操作，本文通过优化写操作进一步提高分布式事务的性能； 提出了一个新的设计目标：NOC-NOC 利用 双视图 + 版本向量技术 实现了两个满足这一设计目标的新事务算法 2 介绍只读事务优化文章： SNOW 不可能定理：只读事务优化的4">
+<meta property="og:type" content="article">
+<meta property="og:title" content="NOC-NOC：面向性能最优的分布式事务 论文阅读">
+<meta property="og:url" content="https://yanghy233.github.io/2024/04/16/NOC-NOC/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="NOC-NOC：面向性能最优的分布式事务（sigmod 24） 1 摘要以前的分布式事务性能最优的工作都致力于研究优化事务的读操作，但忽略了影响写整体性能的关键因素–写操作，本文通过优化写操作进一步提高分布式事务的性能； 提出了一个新的设计目标：NOC-NOC 利用 双视图 + 版本向量技术 实现了两个满足这一设计目标的新事务算法 2 介绍只读事务优化文章： SNOW 不可能定理：只读事务优化的4">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240402165323594.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240402165909291.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240402170909363.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240403101615412.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240403102717806.png">
+<meta property="article:published_time" content="2024-04-16T13:31:43.000Z">
+<meta property="article:modified_time" content="2024-04-16T13:32:50.310Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="transaction">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yanghy233.github.io/img/image-20240402165323594.png">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>NOC-NOC：面向性能最优的分布式事务 论文阅读 - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="NOC-NOC：面向性能最优的分布式事务 论文阅读"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-04-16 21:31" pubdate>
+          2024年4月16日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          1.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          13 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">NOC-NOC：面向性能最优的分布式事务 论文阅读</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>NOC-NOC：面向性能最优的分布式事务（sigmod 24）</p>
+<h4 id="1-摘要"><a href="#1-摘要" class="headerlink" title="1 摘要"></a>1 摘要</h4><p>以前的分布式事务性能最优的工作都致力于研究优化事务的读操作，但忽略了影响写整体性能的关键因素–写操作，本文通过优化写操作进一步提高分布式事务的性能；</p>
+<p>提出了一个新的设计目标：NOC-NOC</p>
+<p>利用 双视图 + 版本向量技术 实现了两个满足这一设计目标的新事务算法</p>
+<h4 id="2-介绍"><a href="#2-介绍" class="headerlink" title="2 介绍"></a>2 介绍</h4><p>只读事务优化文章：</p>
+<h5 id="SNOW-不可能定理：只读事务优化的4个属性无法同时满足，只能同时满足其中3个："><a href="#SNOW-不可能定理：只读事务优化的4个属性无法同时满足，只能同时满足其中3个：" class="headerlink" title="SNOW 不可能定理：只读事务优化的4个属性无法同时满足，只能同时满足其中3个："></a>SNOW 不可能定理：只读事务优化的4个属性无法同时满足，只能同时满足其中3个：</h5><ul>
+<li>S 严格可串行化 strict serializability，要求事务之间按开始时间严格有序，不存在内部操作的并发执行，比如查询余额一定在转账之后；</li>
+<li>N 操作非阻塞 Non-Blocking Operation，要求读操作能立刻被响应，不会因为等待其他节点或锁占用而延迟；</li>
+<li>O 每个读操作仅有单个回复 One Response Per Read，要求读操作只读一个版本；</li>
+<li>W 允许同时存在冲突写事务 Write Transactions that Conflict，要求允许对同一个数据项更改的写事务在并发进行‘</li>
+</ul>
+<p>满足 N+O 的算法：延迟最低的只读事务算法</p>
+<p>满足 S+W 的算法：功能最强的只读事务算法，因为其简化了上层应用的开发</p>
+<p><img src="/img/image-20240402165323594.png" srcset="/img/loading.gif" lazyload alt="image-20240402165323594"></p>
+<h5 id="NOCS-定理：只读事务的最优性能为：在一致性视图的情况下，同时满足-NOC-三个属性："><a href="#NOCS-定理：只读事务的最优性能为：在一致性视图的情况下，同时满足-NOC-三个属性：" class="headerlink" title="NOCS 定理：只读事务的最优性能为：在一致性视图的情况下，同时满足 NOC 三个属性："></a>NOCS 定理：只读事务的最优性能为：在一致性视图的情况下，同时满足 NOC 三个属性：</h5><ul>
+<li>N 非阻塞 non-blocking</li>
+<li>O 单轮通信 one round communication</li>
+<li>C 常量元数据 constant amount of data，需要满足跨分区数据的一致性读的视图</li>
+</ul>
+<p>元数据用于计算只读事务所需的一致性视图，比如事务ID，时间戳；</p>
+<p>作者进行的实验：</p>
+<p><img src="/img/image-20240402165909291.png" srcset="/img/loading.gif" lazyload alt="image-20240402165909291"></p>
+<p>LORA 和 RA-NOC 在事务数量小的情况下，或写比例小的情况下，延迟较低，吞吐量较高；</p>
+<p>但是当事务数量增加并且写事务增多时，整体的延迟在变大，吞吐量在降低；</p>
+<p>由于 NOC 仅优化了只读事务，在写事务占比较多时，锁竞争会导致整体的吞吐量降低；</p>
+<p>左右两幅图都是既有只读事务，又有写的事务；</p>
+<p>近几年提出的几个隔离级别：</p>
+<p><img src="/img/image-20240402170909363.png" srcset="/img/loading.gif" lazyload alt="image-20240402170909363"></p>
+<p>RC：读已提交</p>
+<p>RA：读原子性：在RC的基础上，避免了断裂读取异常 fractured reads</p>
+<p>关于断裂读取异常：read committed 可能会导致下面的情景</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin ( x &#x3D; 1, y &#x3D; 1 )</td>
+<td>begin ( x &#x3D; 1, y &#x3D; 1 )</td>
+</tr>
+<tr>
+<td></td>
+<td>read x &#x3D; 1</td>
+</tr>
+<tr>
+<td>write x &#x3D; 2</td>
+<td></td>
+</tr>
+<tr>
+<td>write y &#x3D; 3</td>
+<td></td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read y &#x3D; 3</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+</tbody></table>
+<p>RA：T2 要么对 T1 所有更新操作感知，要么都不感知，这里之前读了 x &#x3D; 1，那么后面对 y 的读取只能是1；</p>
+<p>RA+：在RA隔离级别的基础上，同时能够保证 read your writes</p>
+<blockquote>
+<p>read your write （Session Guarantees for Weakly Consistent Replicated Data 94）</p>
+<p>没有 read your write 的情景：通常出现在弱一致性系统中</p>
+<p>一个用户改了个新的密码，在重新登录的过程中，由于密码副本是分布式存储，有一个副本异步更新的较慢，用户输入新更改的密码去登录，结果查询到的是那个未来得及更新的副本，导致收到密码无效。而 read your write 能够保证客户端在登录过程中始终读取最新的密码</p>
+</blockquote>
+<p>TCC：事务之间执行能够保证因果一致性</p>
+<blockquote>
+<p>能在并发情况下，满足下面两个事务的顺序关系，即先执行T1，后执行T2</p>
+<p>T1：用户A浏览了商品X并将其添加到购物车</p>
+<p>T2：用户B查看了用户A的购物车，并在此基础上给用户A推荐了相关商品Y</p>
+</blockquote>
+<p>TCCv：TCC基础上使其收敛</p>
+<p>NOC-NOC标准：</p>
+<p>只读事务需要满足前面三个原则（第一个NOC）</p>
+<p>并且由SNOW定理证明的，在存在冲突写事务的情况下，只读事务算法只能满足 N+O+W</p>
+<p>本文在SNOW基础上，写事务算法如果满足写的 NOC，能够最大化提升系统性能；</p>
+<p>定理3.1 在SI隔离级别下，没有事务算法能够同时满足 NOC-NOC 这6个准则</p>
+<p>定理3.2 RC隔离级别下，没有事务算法能够同时满足 NOC-NOC 这6个准则 + 全局可见性</p>
+<p>图3是在RC隔离级别下，T2读取到的数据应该是一样的，都是最开始的数据；</p>
+<p>在满足NOC-NOC + 全局可见性下，T2会读到T1未提交的数据，违背了RC；</p>
+<p>否则，如果T2读到的是原始数据，在T1先开始T2后开始的情况下，在a中T2读不到T1更新的数据，也违背了NOC-NOC里的 $$O_R$$</p>
+<p><img src="/img/image-20240403101615412.png" srcset="/img/loading.gif" lazyload alt="image-20240403101615412"></p>
+<p>本文设计了两个算法，分别在 RA+ 和 TCCv 隔离级别下满足 NOC-NOC 6个准则的算法</p>
+<p><img src="/img/image-20240403102717806.png" srcset="/img/loading.gif" lazyload alt="image-20240403102717806"></p>
+<h4 id="RA-NOC2-算法"><a href="#RA-NOC2-算法" class="headerlink" title="RA-NOC2 算法"></a>RA-NOC2 算法</h4><p>LSV：局部安全视图</p>
+<p>GSV：全局安全视图</p>
+<p>疑问：（GPT）</p>
+<p>1、事务算法指的是？并发控制算法</p>
+<p>2、RA会出现不可重复读吗？会，仅比RC多个避免 fracture read</p>
+<p>3、它们跟2PL，OCC有什么联系和区别？</p>
+<blockquote>
+<p>RAMP-family 和 Eiger-family 算法主要用于分布式环境下的事务处理，以解决分区数据一致性和可靠性的问题；（数据分布在不同的分区）</p>
+<p>而2PL 和 OCC 算法通常用于单机或分布式环境下的本地事务处理，以解决并发控制和一致性问题；</p>
+</blockquote>
+<p>4、如何理解TCCv的收敛？</p>
+<p>RAMP算法提出的背景：</p>
+<blockquote>
+<p>传统的隔离级别是针对单节点环境下的异常定义的，而分布式数据库会出现新的异常</p>
+<p>主要原因在于多个节点上同一个事务的更新可能不是原子可见的</p>
+<p>受网络等影响，某些节点未完成更新，使得同一个读操作读分布在不同副本上的数据时，读取的版本不一致；</p>
+<p>RAMP算法保证了多节点上读取结果的一致性；</p>
+</blockquote>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/transaction/" class="print-no-link">#transaction</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>NOC-NOC：面向性能最优的分布式事务 论文阅读</div>
+      <div>https://yanghy233.github.io/2024/04/16/NOC-NOC/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年4月16日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/04/16/ELECT/" title="Enabling Erasure Coding Tiering for LSM-tree-based Storage 论文阅读">
+                        <span class="hidden-mobile">Enabling Erasure Coding Tiering for LSM-tree-based Storage 论文阅读</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

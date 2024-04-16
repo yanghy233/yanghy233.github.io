@@ -1,0 +1,1276 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="A Critique of ANSI SQL Isolation Levels 经典论文2.1、基本定义history：将多个事务的多个操作交替执行的序列建模为一个线性的执行顺序，如 R1,W2,R2,W1 conflict：两个事务操作同一个data item，且其中一个是写操作 data item：可能是表的一个元组，一个逻辑页面，或一个完整的关系表，或队列中的消息等 dependency g">
+<meta property="og:type" content="article">
+<meta property="og:title" content="A Critique of ANSI SQL Isolation Levels 论文阅读">
+<meta property="og:url" content="https://yanghy233.github.io/2024/04/16/transaction-isolation/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="A Critique of ANSI SQL Isolation Levels 经典论文2.1、基本定义history：将多个事务的多个操作交替执行的序列建模为一个线性的执行顺序，如 R1,W2,R2,W1 conflict：两个事务操作同一个data item，且其中一个是写操作 data item：可能是表的一个元组，一个逻辑页面，或一个完整的关系表，或队列中的消息等 dependency g">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20230916215857936.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20230922103832028.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20230922111033020.png">
+<meta property="article:published_time" content="2024-04-16T13:17:08.000Z">
+<meta property="article:modified_time" content="2024-04-16T13:36:36.945Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="transaction">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yanghy233.github.io/img/image-20230916215857936.png">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>A Critique of ANSI SQL Isolation Levels 论文阅读 - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="A Critique of ANSI SQL Isolation Levels 论文阅读"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-04-16 21:17" pubdate>
+          2024年4月16日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          2.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          18 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">A Critique of ANSI SQL Isolation Levels 论文阅读</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h4 id="A-Critique-of-ANSI-SQL-Isolation-Levels-经典论文"><a href="#A-Critique-of-ANSI-SQL-Isolation-Levels-经典论文" class="headerlink" title="A Critique of ANSI SQL Isolation Levels 经典论文"></a>A Critique of ANSI SQL Isolation Levels 经典论文</h4><h5 id="2-1、基本定义"><a href="#2-1、基本定义" class="headerlink" title="2.1、基本定义"></a>2.1、基本定义</h5><p>history：将多个事务的多个操作交替执行的序列建模为一个线性的执行顺序，如 R1,W2,R2,W1</p>
+<p>conflict：两个事务操作同一个data item，且其中一个是写操作</p>
+<p>data item：可能是表的一个元组，一个逻辑页面，或一个完整的关系表，或队列中的消息等</p>
+<p>dependency graph：依赖图，图中每个节点代表事务的一个操作，若 T1 事务的 op1 在 T2 事务的 op2 之前发生，并且这两个发生了冲突，那么在依赖图中可以用 &lt;op1，op2&gt; 代表 op1 和 op2 节点之间的边；</p>
+<p>两个history是等价的情况：有相同的已提交的事务集合，并且依赖图相同；</p>
+<p>定义 history 是否可以串行化：若一个普通的 history（事务操作相互重叠，如 R1,W2,R2,W1) 能和另一个串行执行事务的 history （事务顺序执行，如：R1,W1,W2,R2 先事务1后事务2）等价，说明该 history 可串行化；</p>
+<h5 id="2-2-ANSI-SQL-的隔离级别"><a href="#2-2-ANSI-SQL-的隔离级别" class="headerlink" title="2.2 ANSI SQL 的隔离级别"></a>2.2 ANSI SQL 的隔离级别</h5><p><strong>P0</strong> 脏写（Dirty Write）：有写锁，但写完立刻释放</p>
+<p>导致的问题：T2 事务覆盖了另一个在运行中、尚未提交事务 T1 写入的值</p>
+<p>比如约束条件： x &#x3D;&#x3D; y，init：x &#x3D; y &#x3D; 0</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>write x &#x3D; 1</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>write x &#x3D;2</td>
+</tr>
+<tr>
+<td></td>
+<td>write y &#x3D; 2</td>
+</tr>
+<tr>
+<td>write x&#x3D; 1</td>
+<td></td>
+</tr>
+</tbody></table>
+<p>但最终结果，x &#x3D; 1，y &#x3D; 2 违反了一开始的一致性约束</p>
+<p><strong>P1</strong> 脏读（Dirty Read）：读到了一个尚未提交的事务修改的值，那个事务在修改后发生了rollback，导致本事务脏读 </p>
+<p>狭义脏读：w1[x]…r2[x]…(a1 and c2 in either order) </p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin （a&#x3D;1）</td>
+<td>begin （a&#x3D;1）</td>
+</tr>
+<tr>
+<td>write a&#x3D;2</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read a&#x3D;&#x3D;2</td>
+</tr>
+<tr>
+<td>rollback</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read  a&#x3D;&#x3D;1 （前后两次 read 不一致）</td>
+</tr>
+</tbody></table>
+<p>广义脏读：w1[x]…r2[x]…((c1 or a1) and (c2 or a2) in any order)</p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>read x&#x3D;50</td>
+<td></td>
+</tr>
+<tr>
+<td>write x&#x3D;10</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read x&#x3D;10</td>
+</tr>
+<tr>
+<td></td>
+<td>read y&#x3D;50</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+<tr>
+<td>read y&#x3D;50</td>
+<td></td>
+</tr>
+<tr>
+<td>write y&#x3D;90</td>
+<td></td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+</tbody></table>
+<p>事务 T1 将 x 转账 40 到 y 账户上，T2 也会造成脏读</p>
+<p><strong>P2</strong> 不可重复读（Non-repeatable）：针对数据的修改，本事务分别两次读到了其他事务修改前和修改后的值</p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin （a&#x3D;1）</td>
+<td>begin （a&#x3D;1）</td>
+</tr>
+<tr>
+<td>read a&#x3D;1</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>modify a&#x3D;2</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+<tr>
+<td>read a&#x3D;2（前后两次 read 不一致）</td>
+<td></td>
+</tr>
+</tbody></table>
+<p><strong>P3</strong> 幻读（Phantom）：针对数据的插入或删除，本事务分别两次读到了其他事务修改前后值的数量不同</p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>select count(*) from student    (50)</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>insert into student a tuple</td>
+</tr>
+<tr>
+<td>select count(*) from student    (51)</td>
+<td></td>
+</tr>
+</tbody></table>
+<p><strong>P4</strong> 丢失修改（lost update）：两个事务同时对一个数据项进行更改，一个先提交，一个后提交，后提交的事务修改将覆盖前一个提交事务的修改</p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>read x&#x3D;10</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read x&#x3D;10</td>
+</tr>
+<tr>
+<td></td>
+<td>write x&#x3D;12</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+<tr>
+<td>write x&#x3D;13</td>
+<td></td>
+</tr>
+<tr>
+<td>commit</td>
+<td>（T2 的修改无效了）</td>
+</tr>
+</tbody></table>
+<p>Cursor Stability：可以防止丢失修改异常</p>
+<p>在RC（read commited）基础上，在游标打开后进行加锁，其他事务可以读取打开的游标的数据，但不能修改这些在游标控制范围内的数据项</p>
+<p><strong>P5</strong> 读偏斜（Read Skew）与写偏斜（Write Skew）</p>
+<p><strong>读偏斜：读到了数据一致性被破坏了的数据</strong>，比如数据的约束条件是 X + Y &#x3D; 100，但事务并发过程中，其中某个阶段一个事务读到了 X + Y &#x3D;120，就会破坏了事务的一致性</p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+<th>X</th>
+<th>Y</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Read X&#x3D;50</td>
+<td>Read X&#x3D;50</td>
+<td>50</td>
+<td>50</td>
+</tr>
+<tr>
+<td>write X&#x3D;30</td>
+<td></td>
+<td>30</td>
+<td>50</td>
+</tr>
+<tr>
+<td>write Y&#x3D;70</td>
+<td></td>
+<td>30</td>
+<td>70</td>
+</tr>
+<tr>
+<td></td>
+<td>Read Y&#x3D;70</td>
+<td>30</td>
+<td>70</td>
+</tr>
+</tbody></table>
+<p> 在事务 T2 看来，X + Y &#x3D; 120，违反了事务的一致性</p>
+<p><strong>写偏斜：两个并发事务首先都读到了相同的数据集，然后各自分别修改了不同的部分，造成最后数据的一致性约束被破坏</strong></p>
+<p>比如数据的一致性约束是 X + Y &lt;&#x3D; 100</p>
+<table>
+<thead>
+<tr>
+<th>事务 T1</th>
+<th>事务 T2</th>
+<th>X</th>
+<th>Y</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Read X&#x3D;10 Y&#x3D;20</td>
+<td>Read X&#x3D;10 Y&#x3D;20</td>
+<td>10</td>
+<td>20</td>
+</tr>
+<tr>
+<td>write X&#x3D;70</td>
+<td></td>
+<td>70</td>
+<td>20</td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+<td>70</td>
+<td>20</td>
+</tr>
+<tr>
+<td></td>
+<td>Write Y&#x3D;50</td>
+<td>70</td>
+<td>50</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+<td>70</td>
+<td>50</td>
+</tr>
+</tbody></table>
+<p>在最后的数据结果中，X + Y &gt; 100，违法了一致性约束</p>
+<p>一些缩写：</p>
+<p>w1[x]：事务1写数据项x</p>
+<p>r2[x]：事务2读数据项x</p>
+<p>r1[P]：事务1读符合条件 P 的所有数据项</p>
+<p>w1[P]：事务1写符合条件 P 的所有数据项</p>
+<p>c1：事务1进行 commit</p>
+<p>a1：事务1进行 abort 或 rollback</p>
+<p>根据上面的三种现象，可以分别进行形式化表达：（严格定义）</p>
+<p>A1脏读：w1[x] . . . r2[x] . . . (c1 or a1)</p>
+<p>A2 不可重复读：r1[x]…w2[x]…c2…r1[x]…c1</p>
+<p>A3 幻读：r1[P]…w2[y in P]…c2…r1[P]…c1</p>
+<p>在 ANSI 中定义了四种隔离级别和与之对应的三种情形：（打勾代表会出现的问题）</p>
+<ul>
+<li>RU：读未提交（读不上锁；写的时候上锁，并只在事务提交或回滚才释放）</li>
+<li>RC：读已提交（读上锁，读完立刻释放；写的时候上锁，并只在事务提交或回滚才释放）</li>
+<li>RR：可重复读</li>
+<li>Serializable：可串行化</li>
+</ul>
+<p><img src="/img/image-20230916215857936.png" srcset="/img/loading.gif" lazyload></p>
+<h5 id="4-2-Snapshot-Isolation"><a href="#4-2-Snapshot-Isolation" class="headerlink" title="4.2 Snapshot Isolation"></a>4.2 Snapshot Isolation</h5><p>快照隔离：一种多版本并发控制隔离</p>
+<p>1、每个事务在 begin 时创建一个开始时间戳，该事务自此以后所有的操作（读取写入）都基于这个快照版本，其他事务在这期间对相同数据项的修改，此事务不可见</p>
+<p>2、当事务 T1 准备提交，它会获得一个 commit 时间戳，当前 T1 能够成功提交的充要条件：不存在其他事务 T2 的 commit 时间戳在 T1 的执行时间内（即 [ start-timestamp, commit-timestamp ] ），否则 T1 rollback，这是为了防止丢失修改错误</p>
+<p>（谁先 commit，谁先成功）</p>
+<p>如果一个事务在另一个事务进行了更新并提交后才试图读取相同的数据，那么它将看到更新后的数据，而不是原始数据。这可以防止脏读（Dirty Read）和不可重复读（Non-Repeatable Read）等并发问题</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>read x0&#x3D;50</td>
+<td></td>
+</tr>
+<tr>
+<td>write x1&#x3D;10</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read x0&#x3D;50（读到的是begin的快照）</td>
+</tr>
+<tr>
+<td></td>
+<td>read y0&#x3D;50</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+<tr>
+<td>read y0&#x3D;50</td>
+<td></td>
+</tr>
+<tr>
+<td>write y1&#x3D;90</td>
+<td></td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>read x&#x3D;50</td>
+<td></td>
+</tr>
+<tr>
+<td>read y&#x3D;50</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read x&#x3D;50</td>
+</tr>
+<tr>
+<td></td>
+<td>read y&#x3D;50</td>
+</tr>
+<tr>
+<td>write y&#x3D;-40</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>write x&#x3D;-40</td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+</tbody></table>
+<p>狭义上的幻读 A3</p>
+<p><strong>A3:</strong> r1[P]…w2[y in P]…c2…r1[P]…c1 </p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>select count(*) from student    (50)</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>insert into student a tuple</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+<tr>
+<td>select count(*) from student    (51)</td>
+<td></td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+</tbody></table>
+<p>广义上的幻读 P3</p>
+<p><strong>P3:</strong> r1[P]…w2[y in P]…((c1 or a1) and (c2 or a2) any order)</p>
+<h4 id="隔离级别的总结"><a href="#隔离级别的总结" class="headerlink" title="隔离级别的总结"></a>隔离级别的总结</h4><p>读未提交(RU)：顾名思义，其他事务读到了当前事务没提交的修改</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin （a&#x3D;1）</td>
+<td>begin （a&#x3D;1）</td>
+</tr>
+<tr>
+<td>write a&#x3D;2</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>read a&#x3D;&#x3D;2</td>
+</tr>
+</tbody></table>
+<p>读已提交(RC)：会读到其他事务已提交的数据，造成不可重复读</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>select * from user;（1，a）</td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td>update user set name &#x3D;’b’ where id&#x3D;1;</td>
+<td></td>
+</tr>
+<tr>
+<td>select * from user;（1，b）</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>select * from user;（1，b）</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+</tbody></table>
+<p>可重复读：读不到其他事务已提交的数据</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>select * from user;（1，a）</td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td>update user set name &#x3D;’b’ where id&#x3D;1;</td>
+<td></td>
+</tr>
+<tr>
+<td>select * from user;（1，b）</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td>commit</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+</tbody></table>
+<p>特殊：并发写的例子：</p>
+<table>
+<thead>
+<tr>
+<th>T1</th>
+<th>T2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>begin</td>
+<td>begin</td>
+</tr>
+<tr>
+<td>select * from user;（1，a）</td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td>update user set name &#x3D;’b’ where id&#x3D;1;</td>
+<td></td>
+</tr>
+<tr>
+<td>select * from user;（1，b）</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>select * from user;（1，a）</td>
+</tr>
+<tr>
+<td></td>
+<td>update user set name &#x3D;’c’ where id&#x3D;1;</td>
+</tr>
+<tr>
+<td></td>
+<td>等待.. T1commit后这条update语句才执行</td>
+</tr>
+<tr>
+<td>commit</td>
+<td>wait</td>
+</tr>
+<tr>
+<td></td>
+<td>update执行成功（1，c）</td>
+</tr>
+<tr>
+<td></td>
+<td>commit</td>
+</tr>
+</tbody></table>
+<p>表2 根据读锁、写锁定义一致性的程度和隔离级别</p>
+<p>degree 0：只需要保证每个操作是原子性的，读不上锁，写操作加锁写完立刻释放；</p>
+<p>degree 1：读未提交，读不上锁，写锁仅在事务 commit 或 rollback 释放，可以防止上一级的 dirty write 异常，但可能会读到其他未提交事务的更改，即脏读（dirty read）；</p>
+<p>degree 2：读已提交，读上读锁，读完立即释放，写锁仅在事务 commit 或 rollback 释放，可以避免读到其他事务未提交的数据，但当别的事务提交后，可以读到新的数据，由于与之前读到的不一致，可能造成不可重复读（Fuzzy Read）和丢失修改（lost update）；</p>
+<p>Cursor Stability 级别：用于在RC基础上防止丢失修改（后一个事务对相同数据的更新提交覆盖前一个事务的提交），方法是读数据时在游标打开后进行加读锁，其他事务可以读取打开的游标的数据，但不能修改这些在游标控制范围内的数据项；</p>
+<p>可重复读：在当前事务过程中，读不到其他事务提交的更改</p>
+<p>快照隔离：每个事务开始时获取一个快照，之后的读写都从这个私有快照中获取数据</p>
+<blockquote>
+<p>可重复读和快照隔离的区别：</p>
+<p>可重复读通过对数据项加长时间读锁来防止丢失修改和不可重复读</p>
+<p>快照隔离通过采用多版本数据项形式防止不可重复读</p>
+</blockquote>
+<p>degree 3 串行化：事务可串行化</p>
+<p><img src="/img/image-20230922103832028.png" srcset="/img/loading.gif" lazyload alt="image-20230922103832028"></p>
+<p><img src="/img/image-20230922111033020.png" srcset="/img/loading.gif" lazyload alt="image-20230922111033020"></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/transaction/" class="print-no-link">#transaction</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>A Critique of ANSI SQL Isolation Levels 论文阅读</div>
+      <div>https://yanghy233.github.io/2024/04/16/transaction-isolation/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年4月16日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2024/04/16/lsm-tree/" title="LSM-Tree 笔记">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">LSM-Tree 笔记</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/04/16/6-824-raft-%E7%AC%94%E8%AE%B0/" title="6.824-raft-笔记">
+                        <span class="hidden-mobile">6.824-raft-笔记</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
