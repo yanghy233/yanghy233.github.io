@@ -1,0 +1,901 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="I&#x2F;O Passthru: Upstreaming a flexible and efficient I&#x2F;O Path in Linux （FAST 24） I&#x2F;O Passthru: 一种在Linux上灵活高效的 IO 路径 1 MotivationProblem 1：User Interface Scarcity 用户接口&#x2F;系统调用的缺乏Kernel p">
+<meta property="og:type" content="article">
+<meta property="og:title" content="I&#x2F;O Passthru Upstreaming a flexible and efficient I&#x2F;O Path in Linux 论文笔记">
+<meta property="og:url" content="https://yanghy233.github.io/2024/05/30/io-passthru/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="I&#x2F;O Passthru: Upstreaming a flexible and efficient I&#x2F;O Path in Linux （FAST 24） I&#x2F;O Passthru: 一种在Linux上灵活高效的 IO 路径 1 MotivationProblem 1：User Interface Scarcity 用户接口&#x2F;系统调用的缺乏Kernel p">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528181712232.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528153001606.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528154456376.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528154548481.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528183228641.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528183318433.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240529092350857.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528182840406.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528191823797.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528092220809.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528094252419.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528103808973.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528112728897.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240528192755408.png">
+<meta property="article:published_time" content="2024-05-30T07:55:56.000Z">
+<meta property="article:modified_time" content="2024-05-30T08:02:07.262Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="io_uring">
+<meta property="article:tag" content="linux kernel">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yanghy233.github.io/img/image-20240528181712232.png">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>I/O Passthru Upstreaming a flexible and efficient I/O Path in Linux 论文笔记 - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="I/O Passthru Upstreaming a flexible and efficient I/O Path in Linux 论文笔记"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-05-30 15:55" pubdate>
+          2024年5月30日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          26 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">I/O Passthru Upstreaming a flexible and efficient I/O Path in Linux 论文笔记</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>I&#x2F;O Passthru: Upstreaming a flexible and efficient I&#x2F;O Path in Linux （FAST 24）</p>
+<p>I&#x2F;O Passthru: 一种在Linux上灵活高效的 IO 路径</p>
+<h2 id="1-Motivation"><a href="#1-Motivation" class="headerlink" title="1 Motivation"></a>1 Motivation</h2><h5 id="Problem-1：User-Interface-Scarcity-用户接口-系统调用的缺乏"><a href="#Problem-1：User-Interface-Scarcity-用户接口-系统调用的缺乏" class="headerlink" title="Problem 1：User Interface Scarcity 用户接口&#x2F;系统调用的缺乏"></a>Problem 1：User Interface Scarcity 用户接口&#x2F;系统调用的缺乏</h5><p>Kernel perfers protocol-agnostic abstractions 内核喜欢与协议无关的抽象</p>
+<ul>
+<li>Deal with a variety of devices in a similar fashion. 可扩展性，到多种设备</li>
+<li>Coining a new syscall requires a more generic use case than the NVMe-specific one. 必须具有通用性</li>
+<li>Once added, syscall has to be supported indefinitely. 一旦加入内核，必须长期支持</li>
+</ul>
+<h5 id="Problem-2：Poor-scalability"><a href="#Problem-2：Poor-scalability" class="headerlink" title="Problem 2：Poor scalability"></a>Problem 2：Poor scalability</h5><p>various I&#x2F;O paths in the Linux kernel</p>
+<p>路径1：speak file -&gt; FS abstraction 通过文件系统访问存储设备，存取数据</p>
+<p>路径2：speak block -&gt; Block abstraction 使用较低级别的接口，与设备文件符交互进行访问</p>
+<p>路径3：speak NVMe -&gt; ioctl -&gt; &#x2F;dev&#x2F;nvme0n1 NVMe设备专用路径，通过ioctl系统调用，同时附带特定的控制命令直接到 NVMe 驱动</p>
+<p>路径1、2性能劣势：多了 FS &#x2F; Block 抽象层，系统调用开销特别多，频繁上下文切换的开销</p>
+<p>路径3性能劣势：ioctl 是同步阻塞式的系统调用，无法利用好 NVMe SSD 高并发吞吐的性能</p>
+<p>当前 NVMe passthrough 的限制</p>
+<p>通常使用 ioctl 系统调用，包含两种操作码 opcode</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs C">NVME_IOCTL_IO64_CMD	<span class="hljs-comment">// 用于发送 I/O 命令到 NVMe 设备</span><br>NVME_IOCTL_ADMIN64_CMD <span class="hljs-comment">// 发送管理命令到 NVMe 设备</span><br>    <br>ioctl(fd, NVME_IOCTL_IO64_CMD, &amp;nvme_user_io_st);<br></code></pre></td></tr></table></figure>
+
+<p>several limitations：</p>
+<ul>
+<li>与块设备高度耦合，只兼容部分nvme命令</li>
+<li>ioctl系统调用是阻塞式的，处理大量并发请求时，线程需要等待IO操作的完成，无法充分利用多核和并发能力</li>
+<li>用户空间和内核空间的复制开销</li>
+<li>接口仅限有 root 权限用户使用</li>
+</ul>
+<p><img src="/img/image-20240528181712232.png" srcset="/img/loading.gif" lazyload alt="image-20240528181712232"></p>
+<p>路径3其他劣势：Poor accessibility 可用性限制，必须要有 root 权限，上云或多租户场景影响很大 </p>
+<p>Lock to root user</p>
+<img src="/img/image-20240528153001606.png" srcset="/img/loading.gif" lazyload alt="image-20240528153001606" style="zoom:50%;" />
+
+
+
+
+
+
+
+<h5 id="Problem-3：NVMe-is-not-longer-tied-to-block-storage"><a href="#Problem-3：NVMe-is-not-longer-tied-to-block-storage" class="headerlink" title="Problem 3：NVMe is not longer tied to block storage"></a>Problem 3：NVMe is not longer tied to block storage</h5><h5 id="对于-Linux-内核来说，NVMe的新标准、非块语义的新指令功能如何进行适配？"><a href="#对于-Linux-内核来说，NVMe的新标准、非块语义的新指令功能如何进行适配？" class="headerlink" title="对于 Linux 内核来说，NVMe的新标准、非块语义的新指令功能如何进行适配？"></a>对于 Linux 内核来说，NVMe的新标准、非块语义的新指令功能如何进行适配？</h5><ul>
+<li>Multiple command-sets</li>
+</ul>
+<p>块语义Block semantics: NVM, ZNS(将存储空间划分为多个区块的存储方式)</p>
+<p>非块语义non block semantics: key-value（直接以键值对方式存储和访问数据）, computational programs（在存储设备上直接运行计算任务）</p>
+<p><img src="/img/image-20240528154456376.png" srcset="/img/loading.gif" lazyload alt="image-20240528154456376"></p>
+<ul>
+<li>There are newer ways to interact with the storage，NVMe引入了以下几种交互方式</li>
+</ul>
+<p>zone append：允许数据顺序写入特定区域，避免传统块存储中的写入冲突，提高写入效率和设备寿命。</p>
+<p>FDP write：根据数据的不同特性优化存储位置，减少写入放大</p>
+<p>copy command：在存储设备内部进行数据复制</p>
+<p>metadata transfer：支持元数据的独立传输和处理</p>
+<p><img src="/img/image-20240528154548481.png" srcset="/img/loading.gif" lazyload alt="image-20240528154548481"></p>
+<ul>
+<li>Many new NVMe commands do not fit into the existing user interface.</li>
+</ul>
+<p>Zone-append 和 Copy-offload 等功能虽然在内核层面支持，但如果没有用户空间 API，没有封装好的库函数与系统调用，这些功能对用户程序来说是不可用的。</p>
+<h2 id="2-io-uring-特性的介绍"><a href="#2-io-uring-特性的介绍" class="headerlink" title="2 io_uring 特性的介绍"></a>2 io_uring 特性的介绍</h2><p>两种模式：SQPoll，IOPoll</p>
+<ul>
+<li>SQPoll 模式（syscall-free submission）</li>
+</ul>
+<blockquote>
+<p>在开启SQPoll模式后，应用程序提交的I&#x2F;O请求操作将卸载到一个内核线程，从而实现无系统调用的提交</p>
+<p>好处：减少了用户空间和内核空间的上下文切换，提高了性能，io每次提交不再需要调用 io_uring_enter</p>
+<p>适用于高频率I&#x2F;O提交场景，相当于有一个专门的工作人员不断检查并处理任务，无需老板亲自下达命令（日志频繁写入）</p>
+</blockquote>
+<ul>
+<li>IOPoll 模式（Interrupt-free IO）</li>
+</ul>
+<blockquote>
+<p>在未设置IOPoll模式时，对于每个IO完成事件的通知都采用硬件中断，但当 IOPS 较高的场景下，硬件中断会产生较多的延迟和CPU开销</p>
+<p>好处：启用IOPoll模式后，应用程序通过轮询完成队列 CQ 来检查IO是否完成，而不是依赖内核中断的通知</p>
+<p>适用于高性能场景，相当于各个员工自己检查任务完成情况（数据库处理大量读请求）</p>
+</blockquote>
+<p><img src="/img/image-20240528183228641.png" srcset="/img/loading.gif" lazyload alt="image-20240528183228641"></p>
+<p>另外两个特性：</p>
+<ul>
+<li>batching，一次提交多个IO请求</li>
+<li>chaining，让IO操作自定义有序，比如读后写，可规定依赖顺序</li>
+</ul>
+<h2 id="3-设计思想"><a href="#3-设计思想" class="headerlink" title="3 设计思想"></a>3 设计思想</h2><h5 id="本文设计目标"><a href="#本文设计目标" class="headerlink" title="本文设计目标"></a>本文设计目标</h5><ul>
+<li>不依赖与块接口，新接口需兼容所有nvme命令</li>
+<li>通用用户接口，每次 NVMe 引入新命令时增加一个新的系统调用是不现实的。因此，需要一个能够处理所有现有和未来 NVMe 命令的用户接口，而无需为每个命令单独设计新的系统调用。</li>
+<li>高效且可扩展，新接口至少与原先的 direct block I&#x2F;O path 性能相当或更高</li>
+<li>通用可访问，不仅限于root用户使用</li>
+<li>最终能合并进linux内核上游仓库</li>
+</ul>
+<h2 id="4-IO-Passthru-直通技术在内核的架构和实现"><a href="#4-IO-Passthru-直通技术在内核的架构和实现" class="headerlink" title="4 IO Passthru 直通技术在内核的架构和实现"></a>4 IO Passthru 直通技术在内核的架构和实现</h2><p>三个方面讲述 io passthru 的设计和实现：可用性，效率和可扩展性，可访问性</p>
+<h5 id="4-1-可用性"><a href="#4-1-可用性" class="headerlink" title="4.1 可用性"></a>4.1 可用性</h5><p>块设备接口的局限性：NVMe 新特性，新命令不支持</p>
+<p>解决方案：设计了通用字符设备接口：NVMe generic char interface</p>
+<p>为每个 NVMe 命名空间（namespace）创建一个字符设备节点，即使引入了新的命令集，字符接口也会自动支持，无需更改 NVMe 驱动程序代码。</p>
+<h5 id="4-2-效率和可扩展性"><a href="#4-2-效率和可扩展性" class="headerlink" title="4.2 效率和可扩展性"></a>4.2 效率和可扩展性</h5><p>创建一个异步的 ioctl 替代方案，包括设计 io_uring 命令，big SQE, big CQE</p>
+<p>同时引入了两个优化点：fixed-buffer and completion-polling</p>
+<p>异步 ioctl 实现的两种方式：</p>
+<ul>
+<li>defer-to-worker：传统异步实现，基于工作线程的异步方法，交给专门负责IO的线程，有性能瓶颈</li>
+<li>true-async：完全消除线程阻塞和上下文切换带来的开销，通过 polling 机制实现高效IO</li>
+</ul>
+<p>User&#x2F;Kernel interface</p>
+<ul>
+<li>Communication backbone: shared ring-buffers (SQ and CQ)</li>
+<li>Reduce syscalls &amp; copies</li>
+<li>Programming model<ul>
+<li>Prepare IO: Get SQE from SQ ring, and fill it up (fill more to make a batch)</li>
+<li>Submit IO: By calling io_uring_enter</li>
+<li>Complete IO: Reap CQE from CQ ring</li>
+</ul>
+</li>
+<li>Submission can be offloaded (no syscall)</li>
+<li>Completion can be polled (interrupt-free IO)</li>
+</ul>
+<img src="/img/image-20240528183318433.png" srcset="/img/loading.gif" lazyload alt="image-20240528183318433" style="zoom:50%;" />
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">int</span> <span class="hljs-title function_">ioctl</span><span class="hljs-params">(fd, opX_cmd, arg)</span>;	<br><span class="hljs-comment">// fd:设备文件描述符 	opX_cmd:控制设备的命令，比如：_IOW(&#x27;a&#x27;, 1, char *)</span><br><span class="hljs-comment">// arg:如果是读文件，这里可以传进来一个 buffer</span><br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>ioctl </p>
+</blockquote>
+<img src="/img/image-20240529092350857.png" srcset="/img/loading.gif" lazyload alt="image-20240529092350857" style="zoom:50%;" />
+
+
+
+<p><img src="/img/image-20240528182840406.png" srcset="/img/loading.gif" lazyload alt="image-20240528182840406"></p>
+<p>这种设计带来的优点：</p>
+<ul>
+<li>零拷贝</li>
+</ul>
+<blockquote>
+<p>在用户空间和内核空间同时共享两个队列：提交队列SQE，完成队列CQE</p>
+<p>在用户空间中创建 SQE 结构体，无需通过 copy_from_user 进行数据拷贝。结果通过内核创建的 CQE 返回，避免了 put_user 操作。因此，通过在控制路径中实现了零拷贝，减少了数据传输的额外开销。</p>
+</blockquote>
+<ul>
+<li>减少线程上下文切换带来的开销</li>
+</ul>
+<blockquote>
+<p>传统的 defer-to-worker 在每次提交IO操作都需要线程之间的切换，有较多开销</p>
+<p>true-async I&#x2F;O 操作的提交和完成都由内核直接处理，用户空间程序无需涉及线程的创建、调度和切换操作，同时也避免了线程的同步开销</p>
+</blockquote>
+<p>两个实现过程中的优化点</p>
+<ul>
+<li>Fixed-buffer</li>
+</ul>
+<blockquote>
+<p>IO操作结束后数据放置在内存缓冲区，原先的设计在分配缓冲区时会先尝试申请内存区域、锁定、释放，而 io_uring 通过复用先前已锁定的缓冲区减少了申请、锁定、释放的开销</p>
+</blockquote>
+<ul>
+<li>Completion Polling 完成队列轮询</li>
+</ul>
+<blockquote>
+<p>应用程序通过轮询完成队列 CQ 来检查IO是否完成，而不是依赖IO完成后硬件中断的通知</p>
+</blockquote>
+<h5 id="4-3-可访问性（访问控制）"><a href="#4-3-可访问性（访问控制）" class="headerlink" title="4.3 可访问性（访问控制）"></a>4.3 可访问性（访问控制）</h5><p>文件模式表示指定了文件的访问权限，当用户程序想直接与硬件设备进行交互时，NVMe驱动程序会进行二级检查，然而，NVMe 驱动程序通过一个粗粒度的 CAP_SYS_ADMIN 检查来保护所有的直通操作，完全忽略文件模式，导致直通接口受限于 root 用户。</p>
+<p>解决方案：修改 NVMe 驱动程序，实现了一个细粒度的访问控制策略</p>
+<p>根据命令类型，管理命令&#x2F; io命令进行了权限划分，让一般用户也能直接操作硬件；</p>
+<p>同时，作者也引入了强制访问控制（MAC）的机制，进一步加强了对这些操作的管控。</p>
+<h2 id="6-IO-passthru-可扩展性和灵活性：NVMe-新接口、新特性的适配"><a href="#6-IO-passthru-可扩展性和灵活性：NVMe-新接口、新特性的适配" class="headerlink" title="6 IO passthru 可扩展性和灵活性：NVMe 新接口、新特性的适配"></a>6 IO passthru 可扩展性和灵活性：NVMe 新接口、新特性的适配</h2><h5 id="6-1-FDP命令"><a href="#6-1-FDP命令" class="headerlink" title="6.1 FDP命令"></a>6.1 FDP命令</h5><p>NVMe FDP tackles this problem of high WAF by segregating I&#x2F;Os of different longevity types in the physical NAND media.</p>
+<p>FDP：Flexible data placement 灵活数据放置指令，最新的一种引导数据放置的标准</p>
+<p>Linux内核先前开发了基于写提示的基础设施允许应用端在写操作时同时发送放置提示，但现在这个基础设施已经被 Linux 主线移除；</p>
+<p>IO passthru 作用：在应用端利用异步IO时可以同时发送放置提示，而不必担心FDP垂直集成到内核存储堆栈的各个部分。</p>
+<p>FDP的优势：通过在物理 NAND 介质中分离不同寿命类型的 IO 来解决写放大的问题；</p>
+<p>SSD写放大问题出现的根源：在 SSD 上，数据的写入并不是简单的覆盖旧数据，而是需要将旧数据和新数据混合在一起管理。混合不同寿命（写入频率和保留时间）类型的数据会导致<strong>更多的内部数据迁移和垃圾回收</strong>，从而增加 WAF。</p>
+<p>FDP的实际效果：</p>
+<ul>
+<li><strong>降低 WAF</strong>：由于减少了不同寿命数据的混合，内部数据迁移和垃圾回收的效率提高，写入放大系数显著降低。</li>
+<li><strong>提高 SSD 性能和寿命</strong>：较低的 WAF 意味着 NAND 媒体的磨损减少，SSD 的寿命延长，性能也更稳定。</li>
+</ul>
+<h5 id="6-2-计算存储架构"><a href="#6-2-计算存储架构" class="headerlink" title="6.2 计算存储架构"></a>6.2 计算存储架构</h5><p>将计算能力直接集成到存储设备中，减少数据传输，提升性能。</p>
+<p>NVMe标准新提出的两个命名空间，通过这两种命名空间管理内存资源和计算资源：</p>
+<ul>
+<li>Memory Namespace</li>
+<li>Compute Namespace</li>
+</ul>
+<p>所有新的NVMe命令都可以通过I &#x2F; O Passthru接口高效地下发，这使得用户空间能够在不改变内核的情况下利用计算存储。</p>
+<h2 id="7-实验"><a href="#7-实验" class="headerlink" title="7 实验"></a>7 实验</h2><p>实验配置：</p>
+<p><img src="/img/image-20240528191823797.png" srcset="/img/loading.gif" lazyload alt="image-20240528191823797"></p>
+<h5 id="实验1：对比-passthrough-IO-path-和-block-IO-path-的效率，确定两者的峰值性能"><a href="#实验1：对比-passthrough-IO-path-和-block-IO-path-的效率，确定两者的峰值性能" class="headerlink" title="实验1：对比 passthrough IO path 和 block IO path 的效率，确定两者的峰值性能"></a>实验1：对比 passthrough IO path 和 block IO path 的效率，确定两者的峰值性能</h5><p>图a：general kernel config 默认配置</p>
+<p>图b：optimized kernel config：禁用CONFIG_RETPOLINE 和 CONFIG_PAGE_TABLE_ISOLATION 选项，内核之所以默认开启这两个选项的原因：缓解 spectre 和 meltdown 硬件缺陷</p>
+<p>SSD 硬件规格：最大读性能：5M IOPS，只有 BASE + FB + POll + optimized kernel config 做到了</p>
+<p>FB：fixed-buffer 优化 （<strong>申请、锁定、释放缓冲区的开销减少）</strong></p>
+<p>Poll：降低了中断和上下文切换的开销</p>
+<p>原因：io passthru 比 block io_uring 涉及的处理更少，其跳过了 split，merge，io scheduling</p>
+<p><img src="/img/image-20240528092220809.png" srcset="/img/loading.gif" lazyload alt="image-20240528092220809"></p>
+<p>图9：</p>
+<p>a图：CPU利用率、提交延迟和页面大小的关系图</p>
+<ul>
+<li>对比了不同页面大小 4KB, 16KB, 64KB 的提交延迟，4KB 利用率最高</li>
+<li>fixed-buffer 减少了 IO 的提交延迟和 CPU 利用率</li>
+</ul>
+<p>b图：对比队列深度与可扩展性</p>
+<ul>
+<li>随着队列深度的增加，可接受的请求数量增加，IOPS持续增加</li>
+</ul>
+<p><img src="/img/image-20240528094252419.png" srcset="/img/loading.gif" lazyload alt="image-20240528094252419"></p>
+<p>图10：对比 SQPoll 和 批处理 对吞吐量的影响</p>
+<p>SQPoll 减少了系统调用的开销，对 block 和 passthrough path 都能提升吞吐量</p>
+<p><img src="/img/image-20240528103808973.png" srcset="/img/loading.gif" lazyload alt="image-20240528103808973"></p>
+<h5 id="实验2："><a href="#实验2：" class="headerlink" title="实验2："></a>实验2：</h5><p>将 IO passthru 接口与上层应用 Cachelib 相结合，并对比是否启用 FDP 对写放大的影响</p>
+<p>使用 write-only KVcache 工作负载进行了实验，在没有放置提示的情况下，SSD的写放大上升到2.4倍之多，而在使用 io passthru 接口并启用 FDP 后，写放大趋近于1</p>
+<p><img src="/img/image-20240528112728897.png" srcset="/img/loading.gif" lazyload alt="image-20240528112728897"></p>
+<h5 id="实验3：IO-passthru-与-用户态的-SPDK-做对比"><a href="#实验3：IO-passthru-与-用户态的-SPDK-做对比" class="headerlink" title="实验3：IO passthru 与 用户态的 SPDK 做对比"></a>实验3：IO passthru 与 用户态的 SPDK 做对比</h5><p>a图：两个CPU核连接两个 SSD设备，IO passthru 减少了与 SPDK 的性能差距</p>
+<p>b图：单个CPU核连接多个 SSD设备，性能上仍落后于 SPDK，原因如下：</p>
+<ul>
+<li>SPDK在用户态，对 NVMe 设备独占拥有权</li>
+<li>I&#x2F;O Passthru 需要使用块层的特性，例如硬件队列抽象、标签管理、超时&#x2F;中止支持等。这些特性增加了 I&#x2F;O 路径中的额外处理负担</li>
+<li>IO passthru 经过内核，还是免不了系统调用的开销</li>
+</ul>
+<p><img src="/img/image-20240528192755408.png" srcset="/img/loading.gif" lazyload alt="image-20240528192755408"></p>
+<h2 id="8-总结"><a href="#8-总结" class="headerlink" title="8 总结"></a>8 总结</h2><p>随着新的存储特性、存储规范的增加，Linux 内核缺乏充足的系统调用与接口，面临适应性的挑战；</p>
+<p>作者提出了一个新的选择，通过在内核中添加新的 IO Passthru 来解决这个问题。</p>
+<p>这个路径通过使用新的 NVMe 字符接口并与 io_uring 相结合，扩展 io_uring 并提出同步阻塞式系统调用 ioctl 的替代方案，为当前&#x2F;未来的 NVMe 新特性提供了支持。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/io-uring/" class="print-no-link">#io_uring</a>
+      
+        <a href="/tags/linux-kernel/" class="print-no-link">#linux kernel</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>I/O Passthru Upstreaming a flexible and efficient I/O Path in Linux 论文笔记</div>
+      <div>https://yanghy233.github.io/2024/05/30/io-passthru/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年5月30日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/05/09/nvme-storage/" title="充分利用NVMe SSD特性提升OLTP存储引擎的性能(VLDB23)">
+                        <span class="hidden-mobile">充分利用NVMe SSD特性提升OLTP存储引擎的性能(VLDB23)</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
