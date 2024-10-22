@@ -1,0 +1,1018 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="缓解 LSM-Tree write amplification &#x2F; write stall 的论文列表： （7 篇文章）  bLSM: A General Purpose Log Structured Merge Tree（SIGMOD 2012）   第一次提出针对 Write Stall 的优化调度方法，提出弹簧-齿轮调度器； 核心思想是允许在每一层增加额外的调度控制组件来并发调度不">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LSM-Tree 缓解写放大 论文阅读笔记">
+<meta property="og:url" content="https://yanghy233.github.io/2024/10/22/lsm-tree-schedule/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="缓解 LSM-Tree write amplification &#x2F; write stall 的论文列表： （7 篇文章）  bLSM: A General Purpose Log Structured Merge Tree（SIGMOD 2012）   第一次提出针对 Write Stall 的优化调度方法，提出弹簧-齿轮调度器； 核心思想是允许在每一层增加额外的调度控制组件来并发调度不">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708105840631.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708111216590.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708111311755.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708151919955.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708164416389.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708165105034.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709100834409.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709102855728.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709103407001.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709105816675.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709111823763.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709111849289.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709133834332.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709135152692.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709142743718-17205064641031.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709144557816.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709144609405.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709145442054.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709151449272.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709152244370.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709152355625.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709152451263.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240709152642316.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240606094228539.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240606102336204.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240708170922889.png">
+<meta property="article:published_time" content="2024-10-22T01:32:34.000Z">
+<meta property="article:modified_time" content="2024-10-22T01:51:35.771Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="LSM-Tree">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yanghy233.github.io/img/image-20240708105840631.png">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>LSM-Tree 缓解写放大 论文阅读笔记 - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="LSM-Tree 缓解写放大 论文阅读笔记"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-10-22 09:32" pubdate>
+          2024年10月22日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          4.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          37 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">LSM-Tree 缓解写放大 论文阅读笔记</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>缓解 LSM-Tree write amplification &#x2F; write stall 的论文列表：</p>
+<p>（7 篇文章）</p>
+<ul>
+<li>bLSM: A General Purpose Log Structured Merge Tree（SIGMOD 2012）</li>
+</ul>
+<blockquote>
+<p>第一次提出针对 Write Stall 的优化调度方法，提出弹簧-齿轮调度器；</p>
+<p>核心思想是允许在每一层增加额外的调度控制组件来并发调度不同层的flush&#x2F;compaction 过程；</p>
+</blockquote>
+<ul>
+<li>A Priority and Fairness Mixed Compaction Scheduling Mechanism for LSM-tree Based KV-Stores（ICA3PP 2018）体系结构会议</li>
+</ul>
+<blockquote>
+<p>提出了新的压缩调度方案：将以分数为中心的优先级调度与以时间片为中心的公平性调度相结合，减少每层（each component）SST 文件的数量，进而减少写放大；</p>
+</blockquote>
+<ul>
+<li>LSM-based Storage Techniques: A Survey（VLDB Journel 2020）</li>
+</ul>
+<blockquote>
+<p>总结了到 2019 年为止所有的 LSM-Tree 的优化方向和优化策略，其中在 write stall 方面对 blsm 进行了评价：设计上仅适用于未分区的分层合并策略，没有考虑更复杂的分区管理策略；仅优化了写入内存组件的最大延迟，而忽略了写入请求的排队延迟，这可能导致系统在高负载情况下性能不稳定。</p>
+<p>bLSM is the only effort that attempts to address this problem（since 2019）</p>
+<p>未分区的 lsm-tree 系统：leveldb、rocksdb</p>
+<p>分区管理的 lsm-tree 系统：Cassandra、HBase</p>
+</blockquote>
+<ul>
+<li>MatrixKV: Reducing Write Stalls and Write Amplification in LSM-tree Based KV Stores with Matrix Container in NVM（ATC 2020）华科</li>
+</ul>
+<blockquote>
+<p>首次提出将 L0 层数据放入 NVM，利用细粒度列压缩，减少树深度等方式降低 LSM-Tree 的写放大和写停滞；</p>
+</blockquote>
+<ul>
+<li>PM-Blade: A Persistent Memory Augmented LSM-tree Storage for Database（ICDE 2023）华东师大</li>
+</ul>
+<blockquote>
+<p>用了PM+协程，优化的是压缩，减少写放大，但并没有针对 write stall 进行优化</p>
+<p>解决方案：在基于 PM 的 L0 层进行内部压缩，将 L0 层转化为 sorted；</p>
+<p>提出 cost-based compaction：基于代价的压缩策略提高读效率，减少写放大；</p>
+<p>同时第一次提出基于协程的压缩方法，减少 CPU 等待时间和 IO 争用；</p>
+</blockquote>
+<ul>
+<li>On Performance Stability in LSM-based Storage Systems（VLDB 20）</li>
+</ul>
+<blockquote>
+<p>一种两阶段实验方法评测 LSM-Tree 的 write stall 问题</p>
+<p>对 write stall 的优化方法提出一些参考性建议</p>
+</blockquote>
+<ul>
+<li>A GPU-accelerated Compaction Strategy for LSM-based Key-Value Store System（MSST 2024）南开 体系结构会议</li>
+</ul>
+<blockquote>
+<p>重点研究当 KV 对的大小为 中小型 时，利用 GPU 加速合并；</p>
+<p>提出两种 NVMe SSD + GPU 数据传输机制：pipeline、P2P，最小化压缩过程的数据传输开销；</p>
+<p>基于 Leveldb 实现，能够尽可能减少 write stall，使吞吐量趋于稳定；</p>
+</blockquote>
+<h3 id="bLSM-A-General-Purpose-Log-Structured-Merge-Tree"><a href="#bLSM-A-General-Purpose-Log-Structured-Merge-Tree" class="headerlink" title="bLSM: A General Purpose Log Structured Merge Tree"></a>bLSM: A General Purpose Log Structured Merge Tree</h3><h5 id="论文重点概述："><a href="#论文重点概述：" class="headerlink" title="论文重点概述："></a>论文重点概述：</h5><h5 id="1、每层数据-compaction-的代价计算：-R-i"><a href="#1、每层数据-compaction-的代价计算：-R-i" class="headerlink" title="1、每层数据 compaction 的代价计算：$$R_i$$"></a>1、每层数据 compaction 的代价计算：$$R_i$$</h5><p>$$R_i &#x3D; \frac{|C_{i+1}|}{|C_i|}$$</p>
+<p>完整数据总量：$$|data| &#x3D; |C_0| * \prod_{i&#x3D;0}^{n-1}R_i$$</p>
+<p>代价总和：total cost &#x3D; $$\sum_{i&#x3D;0}^{n-1}R_i$$</p>
+<p>现在目标是让代价总和最小，即最优化问题 $$min$$ total_cost</p>
+<p>由拉格朗日：$$L&#x3D;\sum_{i&#x3D;0}^{n-1}R_i + \lambda*(|C_0| * \prod_{i&#x3D;0}^{n-1}R_i - |data|)$$</p>
+<p>即求偏导：$$\frac{\partial L}{\partial R_j} &#x3D; 1 + \lambda * |C_0|*\frac{\prod_{i&#x3D;0}^{n-1}R_i}{R_j} &#x3D; 0$$</p>
+<p>得到只有 $$R_i &#x3D; R_j &#x3D; R_k$$，每层之间的大小倍数相同时，total cost 有极小值；</p>
+<p>带回得到：两层之间最佳的比率为 $$R_i &#x3D; \sqrt[N-1]{\frac{|data|}{|C_0|}}$$ </p>
+<p>但由于实际情况下要插入的数据总量 $$|data|$$未知，最佳的 $$R_i$$ 只存在于理想情况；</p>
+<p>最小化总的压缩代价，只能减少写放大，但对 write stall 没有很好的效果；</p>
+<h5 id="2、分区调度器与层调度器对比"><a href="#2、分区调度器与层调度器对比" class="headerlink" title="2、分区调度器与层调度器对比"></a>2、分区调度器与层调度器对比</h5><p>分区调度器 Partition schedulers 在特定倾斜分布的负载场景下能尽可能减少 IO，减少写停滞，如 Cassandra、HBase 系统应用了这个优化，但缺点也很明显，当数据分布不倾斜时，这种调度方案没有显著效果，因此 leveldb、rocksdb 没有采用，作者接下来提出为不分区的 LSM-Tree 系统的层调度器方案（spring-and-gear scheduler）</p>
+<img src="/img/image-20240708105840631.png" srcset="/img/loading.gif" lazyload alt="image-20240708105840631" style="zoom: 67%;" /> 
+
+
+
+<h5 id="3、弹簧-齿轮调度器的设计"><a href="#3、弹簧-齿轮调度器的设计" class="headerlink" title="3、弹簧-齿轮调度器的设计"></a>3、弹簧-齿轮调度器的设计</h5><h5 id="3-1-首先是作者最初的想法：齿轮调度器的建模"><a href="#3-1-首先是作者最初的想法：齿轮调度器的建模" class="headerlink" title="3.1 首先是作者最初的想法：齿轮调度器的建模"></a>3.1 首先是作者最初的想法：齿轮调度器的建模</h5><p>核心思想：</p>
+<ul>
+<li><p>每层合并过程维护两个进度指示器，来控制合并线程的执行；</p>
+</li>
+<li><p>只要上下游合并能够保持一个相对的进度，write stall 问题就会尽可能避免发生</p>
+</li>
+</ul>
+<p>（相对进度可以形象理解为多个齿轮之间的啮合运转，不会说某一层合并过慢导致前台停止接收写请求）</p>
+<p><img src="/img/image-20240708111216590.png" srcset="/img/loading.gif" lazyload alt="image-20240708111216590"></p>
+<p>入合并操作的进度：分子为当前层的合并已读取的字节数</p>
+<p><img src="/img/image-20240708111311755.png" srcset="/img/loading.gif" lazyload alt="image-20240708111311755"></p>
+<p>出合并操作的进度：$$\frac{当前合并的进度(0-1) + 已合并的次数}{合并次数预估的上限值}$$</p>
+<p>根据这两个进度指示器：要么减少上层写吞吐、要么停止合并让出CPU资源</p>
+<p>就比如现在数据积压特别多，那就让给压缩线程，减少上层写吞吐，不至于整个系统直接 write stall</p>
+<p>3.2 其次，在压缩合并过程中，比如 L0~L1，涉及到外排，作者提到外排用的是替换选择外排（扫雪机模型），而不是传统的多路归并外排；</p>
+<p>优点是：替换选择外排优化的是外排的分割阶段，尽可能让分割后的每个顺串（SST file) 长度最大化；</p>
+<p>从而减少初始读写 I&#x2F;O，并且用小根堆实现，能够与最终提出的水位线方法相契合；</p>
+<p>3.3 弹簧-齿轮调度器</p>
+<p>为什么需要改进：齿轮调度器太脆弱，合并与插入操作绑定得太紧，同时与外排铲雪机模型交互性太差；</p>
+<p>改进方法：在齿轮调度器的基础上，施加 low，high 水位线，比如：L0快满时反向施压，系统内部降低对写请求的接收频率，L0快空时尽量减少合并，停止压缩线程，让出 CPU 资源，给前台接收用户的写请求。</p>
+<p>本质：控制合并的速率，在线程级别上进行调度的调控</p>
+<h5 id="性能表现："><a href="#性能表现：" class="headerlink" title="性能表现："></a>性能表现：</h5><p>OPS 在 2W 左右</p>
+<p><img src="/img/image-20240708151919955.png" srcset="/img/loading.gif" lazyload alt="image-20240708151919955"></p>
+<h5 id="本篇文章复现的缺点："><a href="#本篇文章复现的缺点：" class="headerlink" title="本篇文章复现的缺点："></a>本篇文章复现的缺点：</h5><p>虽然论文中给出了 github 代码地址，但由于长期不维护并且是基于06年伯克利的一个系统的优化型插件，跑不出来，19年有人提 issue 但都没人理，如果往后做对比实验可能只能照着论文思路自己实现个简单的版本。</p>
+<h3 id="MatrixKV-Reducing-Write-Stalls-and-Write-Amplification-in-LSM-tree-Based-KV-Stores-with-Matrix-Container-in-NVM"><a href="#MatrixKV-Reducing-Write-Stalls-and-Write-Amplification-in-LSM-tree-Based-KV-Stores-with-Matrix-Container-in-NVM" class="headerlink" title="MatrixKV: Reducing Write Stalls and Write Amplification in LSM-tree Based KV Stores with Matrix Container in NVM"></a>MatrixKV: Reducing Write Stalls and Write Amplification in LSM-tree Based KV Stores with Matrix Container in NVM</h3><p>论文主要贡献点：</p>
+<h5 id="1、关于-write-stall，写放大等原因与来源分析："><a href="#1、关于-write-stall，写放大等原因与来源分析：" class="headerlink" title="1、关于 write stall，写放大等原因与来源分析："></a>1、关于 write stall，写放大等原因与来源分析：</h5><ul>
+<li>主要来源于 L0 ~ L1 的压缩合并</li>
+<li>写放大随着 LSM-Tree 深度的增加而增加</li>
+</ul>
+<blockquote>
+<p>LSM-Tree 的 immemtable 是跳表结构，整体有序，每当跳表满了就直接刷入磁盘上的 L0 层：</p>
+<p>也就是说，L0 层多个 SST File 之间是无序的，SST 内部是有序的；</p>
+<p>而 L1~Ln SST File 整体是完全有序的；</p>
+<p>正因为 L0 可能存在多个 SST File 有针对相同 key 的增删改操作，每次合并几乎都是全量 merge；</p>
+<p>而 L1~Ln merge 只需根据 key 的范围，选边界相同的几个 SST File 进行合并，I&#x2F;O少很多。</p>
+</blockquote>
+<h5 id="2、提出的几个贡献点："><a href="#2、提出的几个贡献点：" class="headerlink" title="2、提出的几个贡献点："></a>2、提出的几个贡献点：</h5><ul>
+<li>将 L0 层所有数据放入 PM</li>
+<li>对 L0 层进行细粒度列压缩策略，减少 write stall</li>
+<li>减少 level 数量方式减少写放大</li>
+<li>Cross-Row hint search 方法提高读性能</li>
+</ul>
+<h5 id="3、具体实现"><a href="#3、具体实现" class="headerlink" title="3、具体实现"></a>3、具体实现</h5><p>对于 L0 层，每行 RowTable 存储 immemtable 一次性 flush 的数据，即每行数据有序，可理解为每行就是原先的一个 SST File；</p>
+<p>内部压缩阶段，进行一个分区合并处理，按照 key 范围分区，多个行合并成一个大的行；</p>
+<p>之后按照分区重新组成一个个 SST File</p>
+<p>本质思想：让原本无序的 L0 层在 PM 快速存取特性下变成多个完全有序的 SST，进而让 L0 到 L1 的合并尽可能减少 I&#x2F;O；</p>
+<p><img src="/img/image-20240708164416389.png" srcset="/img/loading.gif" lazyload alt="image-20240708164416389"></p>
+<p>4、论文的实现效果</p>
+<p><img src="/img/image-20240708165105034.png" srcset="/img/loading.gif" lazyload alt="image-20240708165105034"></p>
+<h3 id="PM-Blade-A-Persistent-Memory-Augmented-LSM-tree-Storage-for-Database"><a href="#PM-Blade-A-Persistent-Memory-Augmented-LSM-tree-Storage-for-Database" class="headerlink" title="PM-Blade: A Persistent Memory Augmented LSM-tree Storage for Database"></a>PM-Blade: A Persistent Memory Augmented LSM-tree Storage for Database</h3><h5 id="PM-Blade-贡献点"><a href="#PM-Blade-贡献点" class="headerlink" title="PM-Blade 贡献点"></a>PM-Blade 贡献点</h5><ul>
+<li>利用 PM 优化读性能，同时减少写放大；</li>
+<li>在基于 PM 的 L0 层进行内部压缩，将 L0 层转化为 sorted；</li>
+<li>提出 cost-based compaction：在 L0 层基于代价的压缩策略提高读效率，减少写放大；</li>
+<li>第一次提出在 LSM-Tree 中使用基于协程的压缩方法，减少 CPU 等待时间和 IO 争用；</li>
+</ul>
+<h5 id="1、整体架构"><a href="#1、整体架构" class="headerlink" title="1、整体架构"></a>1、整体架构</h5><p><img src="/img/image-20240709100834409.png" srcset="/img/loading.gif" lazyload alt="image-20240709100834409"></p>
+<h5 id="2、L0层的数据存储格式"><a href="#2、L0层的数据存储格式" class="headerlink" title="2、L0层的数据存储格式"></a>2、L0层的数据存储格式</h5><p><img src="/img/image-20240709102855728.png" srcset="/img/loading.gif" lazyload alt="image-20240709102855728"></p>
+<p>每个压缩后的键值对存储为：[共享键长度，额外长度，值大小，额外键，具体值]</p>
+<p>Example：[ {apple, 10}, {applet, 20}, {application, 30} ]</p>
+<p>After store：[ [0, 5, 2, ‘apple’, ‘10’], [5, 1, 2, ‘t’, ‘20’], [4, 7, 2, ‘ication’, ‘30’] ]</p>
+<h5 id="3、L0-层的-Internel-compaction"><a href="#3、L0-层的-Internel-compaction" class="headerlink" title="3、L0 层的 Internel compaction"></a>3、L0 层的 Internel compaction</h5><p>unsorted tables：由 immemtable 直接 flush 下来的，每个块内部有序；</p>
+<p><img src="/img/image-20240709103407001.png" srcset="/img/loading.gif" lazyload alt="image-20240709103407001"></p>
+<h5 id="4、压缩模型-compaction-model-指导压缩线程的调度"><a href="#4、压缩模型-compaction-model-指导压缩线程的调度" class="headerlink" title="4、压缩模型 compaction model 指导压缩线程的调度"></a>4、压缩模型 compaction model 指导压缩线程的调度</h5><p>压缩模型的三个目标：</p>
+<ul>
+<li>随着 L0 层 PM table 的增加，缓解读放大的问题</li>
+<li>充分利用 PM 空间，减少下层合并的写放大问题</li>
+<li>尽可能让 warm 数据留在 L0 层的 PM table，减少读数据的访问 IO</li>
+</ul>
+<p>算法1：给出了压缩策略的调度流程</p>
+<p><img src="/img/image-20240709105816675.png" srcset="/img/loading.gif" lazyload alt="image-20240709105816675"></p>
+<p>1、当一个新的 PM 表被刷新到 L0 时，用公式1 rf 读放大的代价来判定是否使用内部压缩对读操作进行加速</p>
+<p>2、判断 $$P_i$$ 表的容量是否超过阈值 $$\tau_w$$，并判断 wf 写放大的代价来判定是否使用内部压缩</p>
+<p>3、最后判断整个 L0 层的容量是否超过阈值 $$\tau_m$$，并选择合适的划分集进行向下层的压缩</p>
+<p>符号解释：</p>
+<p><img src="/img/image-20240709111823763.png" srcset="/img/loading.gif" lazyload alt="image-20240709111823763"></p>
+<h5 id="公式1理解"><a href="#公式1理解" class="headerlink" title="公式1理解"></a>公式1理解</h5><p>内部压缩能够提高读性能，但在不恰当的时间段进行内部压缩会产生过多的额外开销，比如当一个区块 partition 只包含少量 unsorted table 并且读的很少，对这个区块进行内部压缩是不需要的。</p>
+<p>推导：读数据代价 &#x3D; 压缩前读的代价 - 压缩后读的代价 - 压缩过程在单位时间内的成本代价</p>
+<p>$$n_i^r$$：单位时间内在区块 $$p_i$$ 的读操作数</p>
+<p>压缩前存在 $$n_i$$ 个未排序的 PM table，最多需要读取 $$n_i+1$$ 个，最少需要读取 1 个，平均为$$\frac{n_i+2}{2}$$ 个</p>
+<p>压缩后，仅需1个，$$I_b$$ 为 PM table 内部二分的代价</p>
+<p>因此，$$\Delta cost_i(rf) &gt; 0$$ 意味着经过 L0 层内部压缩后读的代价是比压缩前整体都要小的，压缩是值得的 </p>
+<p><img src="/img/image-20240709111849289.png" srcset="/img/loading.gif" lazyload alt="image-20240709111849289"></p>
+<h5 id="公式2：尽可能减少写放大"><a href="#公式2：尽可能减少写放大" class="headerlink" title="公式2：尽可能减少写放大"></a>公式2：尽可能减少写放大</h5><p>当区块 $$P_i$$ 的 table 数量超过阈值，并且每个 table 之间存在足够多重复数据时，将这些 table 进行 L0 层的内部压缩最为划算，这可以缓解向 L1 层的写放大问题</p>
+<p>$$n_{bef}$$：内部压缩前的区块总记录数，约等于写入数量</p>
+<p>$$n_{aft}$$：内部压缩后的区块总记录数，约等于更新数量</p>
+<p>若 $$\Delta cost_i(wf) &gt; 0$$，意味着 内部压缩消失的数据若直接参与下层的合并代价 高于 压缩前所有数据参与内部压缩的代价，此时，内部压缩比直接进行下层合并要划算得多，进而减少写放大。</p>
+<p><img src="/img/image-20240709133834332.png" srcset="/img/loading.gif" lazyload alt="image-20240709133834332"></p>
+<h5 id="公式3：尽可能将-warm-数据留在-L0-层"><a href="#公式3：尽可能将-warm-数据留在-L0-层" class="headerlink" title="公式3：尽可能将 warm 数据留在 L0 层"></a>公式3：尽可能将 warm 数据留在 L0 层</h5><p>由于 L0 各个 SST File 之间在内部压缩后形成有序，向下层合并过程不需要所有 SST File 参与；</p>
+<p>我们可以决定哪些 SST File 需要合并到 L1</p>
+<p>公式 3 将它抽象成一个背包问题，选取哪几个 SST File 合并能够让效益最大化</p>
+<p>即选取的几个分区，它们受到用户侧读取的数据频率最多，这几个分区可以留在 L0 层，</p>
+<p>同时它们的累加大小总和小于暂不向下合并的阈值 $$\tau_t$$</p>
+<p><img src="/img/image-20240709135152692.png" srcset="/img/loading.gif" lazyload alt="image-20240709135152692"></p>
+<p>以上就是 cost-based compaction model</p>
+<h5 id="5、基于协程的压缩方法"><a href="#5、基于协程的压缩方法" class="headerlink" title="5、基于协程的压缩方法"></a>5、基于协程的压缩方法</h5><ul>
+<li><p>以下的压缩仅用于 major compaction：上下层之间的压缩</p>
+</li>
+<li><p>表3是在单核 CPU 上运行多个 compaction 任务，每个任务由一个线程负责，即使如此，无论是 CPU 还是 IO 设备，都没有充分利用好，大部分时间都处在空闲。</p>
+</li>
+</ul>
+<p><img src="/img/image-20240709142743718-17205064641031.png" srcset="/img/loading.gif" lazyload alt="image-20240709142743718"></p>
+<p>合并过程可以分为三个阶段：</p>
+<ul>
+<li>read block：将 $$L_i$$ 层数据读入内存 read buffer</li>
+<li>sort：在 read buffer 中排好序，并放入内存中另外一个区域 write buffer</li>
+<li>write block：一旦 write buffer 填充满了，立刻刷盘</li>
+</ul>
+<p>S1, S3 都是 IO 操作，S2 为 CPU 操作，因此一个理想的合并过程应该是图4(a)</p>
+<p>但在实际测试中发现，图4(b) 才是一般情况，即出现极短的 S2 ( fragment time )</p>
+<p><img src="/img/image-20240709144557816.png" srcset="/img/loading.gif" lazyload alt="image-20240709144557816"></p>
+<p>产生的原因本质上是内存缓冲区的大小是有限的，因此转移缓冲区操作会产生碎片时间，以图5为例</p>
+<p>第一个 S2 将 13  放入 write buffer 后，缓冲区满了，立刻执行 S3 刷入磁盘，而此时 read buffer 并不算太空，没有必要执行 read buffer 这个 IO 操作，因此 S3 结束后，依然是 S2，全部转移走后才执行S1读取数据</p>
+<p><img src="/img/image-20240709144609405.png" srcset="/img/loading.gif" lazyload alt="image-20240709144609405"></p>
+<p>针对这个实际情况，如果直接上协程，即每个协程分配一个压缩操作，会无法充分利用 CPU 和 IO</p>
+<p>图4(c) 的 CPU，IO 利用率分析，比如 S2 阶段切换任务后，C2协程一下就做完了，此时虽然 C1的S3 和 C2的S2 同时结束，但由于是随机性调度，调度给到 C2的S3 执行，导致让 CPU 处于闲置。 </p>
+<p><img src="/img/image-20240709145442054.png" srcset="/img/loading.gif" lazyload alt="image-20240709145442054"></p>
+<h5 id="coroutine-based-method"><a href="#coroutine-based-method" class="headerlink" title="coroutine-based method"></a>coroutine-based method</h5><p>优化方面：</p>
+<ul>
+<li>将 S2 产生的碎片时间消除</li>
+<li>调度协程防止突发的 IO 争用</li>
+</ul>
+<p>具体做法：</p>
+<ul>
+<li>将 S3 阶段分配一个专用的 flush 协程</li>
+</ul>
+<blockquote>
+<p>原先对 write buffer 的处理策略是只有缓冲池满了，立刻刷入磁盘，这就导致 S2 执行时 write buffer 可能已经存在部分数据，进而存在碎片时间</p>
+<p>现在由一个专门的 flush coroutine 进行刷盘，无需等待缓冲池满了的情况</p>
+<p>并且这个协程可以由接下来的协程调度器进行调度。</p>
+</blockquote>
+<ul>
+<li>提出一个协程调度策略，并将一个完整的 compaction 任务划分为多个协程级子任务</li>
+</ul>
+<blockquote>
+<p>调度器的核心思想：当IO压力较低时执行IO操作，并在压力变高时限制IO操作数量；</p>
+<p>具体方法：对 IO 数量进行监控，建立 flush 协程数量的数学模型</p>
+</blockquote>
+<p>$$q_{flush}$$：当前允许 flush 协程运行的 IO 数量</p>
+<p>q：系统最大值，一般由用户设定</p>
+<p>$$q_{comp}$$：实时压缩协程的 IO 数量，即 read block 协程数</p>
+<p>$$q_{cli}$$：客户端侧读访问请求中需要到 SSD 访问的 IO 数量</p>
+<p><img src="/img/image-20240709151449272.png" srcset="/img/loading.gif" lazyload alt="image-20240709151449272"></p>
+<p>在实现上，关于线程绑定物理核：</p>
+<blockquote>
+<p>To take full advantage of multicore, we assign c worker threads to c physical cores.</p>
+</blockquote>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs c++"><span class="hljs-comment">// every worker thread(int i)</span><br><span class="hljs-comment">// init: all bitmap set to zero</span><br><span class="hljs-type">cpu_set_t</span> cpuset;<br><span class="hljs-built_in">CPU_ZERO</span>(&amp;cpuset);<br><br><span class="hljs-comment">// set location of bitmap, i = 1 设置要绑定的 CPU 核心编号</span><br><span class="hljs-built_in">CPU_SET</span>(i, &amp;cpuset);<br><br><span class="hljs-comment">// set thread affinity bind to cpu</span><br><span class="hljs-built_in">pthread_setaffinity_np</span>(<span class="hljs-built_in">pthread_self</span>(), <span class="hljs-built_in">sizeof</span>(<span class="hljs-type">cpu_set_t</span>), &amp;cpuset);<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+<h5 id="论文实验结果"><a href="#论文实验结果" class="headerlink" title="论文实验结果"></a>论文实验结果</h5><p>benchmark：db_bench, ycsb</p>
+<ul>
+<li>用了 PM 后，写放大显著降低</li>
+</ul>
+<p><img src="/img/image-20240709152244370.png" srcset="/img/loading.gif" lazyload alt="image-20240709152244370"></p>
+<ul>
+<li>PM 对比 SSD，在读延迟方面的降低</li>
+</ul>
+<img src="/img/image-20240709152355625.png" srcset="/img/loading.gif" lazyload alt="image-20240709152355625" style="zoom: 80%;" />
+
+
+
+<ul>
+<li>线程调度策略、朴素的协程调度策略、PMBlade调度策略对比</li>
+</ul>
+<p><img src="/img/image-20240709152451263.png" srcset="/img/loading.gif" lazyload alt="image-20240709152451263"></p>
+<ul>
+<li>ycsb不同负载下的多个系统间的吞吐对比</li>
+</ul>
+<p><img src="/img/image-20240709152642316.png" srcset="/img/loading.gif" lazyload alt="image-20240709152642316"></p>
+<h3 id="On-Performance-Stability-in-LSM-based-Storage-Systems"><a href="#On-Performance-Stability-in-LSM-based-Storage-Systems" class="headerlink" title="On Performance Stability in LSM-based Storage Systems"></a>On Performance Stability in LSM-based Storage Systems</h3><h5 id="贡献点："><a href="#贡献点：" class="headerlink" title="贡献点："></a>贡献点：</h5><ul>
+<li>两阶段实验方法来评估各种 LSM-Tree 的写延迟</li>
+<li>探索 LSM 合并调度器的设计</li>
+</ul>
+<h5 id="分析-write-stall-出现的原因"><a href="#分析-write-stall-出现的原因" class="headerlink" title="分析 write stall 出现的原因"></a>分析 write stall 出现的原因</h5><ul>
+<li>快速的内存写操作和较慢的背景 IO 操作之间的不匹配，如果异步的 IO flush &#x2F; merge 跟不上，前台的内存写操作就会减慢或停止；</li>
+<li>数据到达率 data arrival rate 直接影响 LSM-Tree 的写延迟，如果数据到达率较低，写入停滞发生的可能就会更低</li>
+</ul>
+<p><img src="/img/image-20240606094228539.png" srcset="/img/loading.gif" lazyload alt="image-20240606094228539"></p>
+<p>作者提出两个问题作为方向指导：</p>
+<ul>
+<li>如果数据到达率为最大写吞吐的 95%，是否还会导致写停滞？</li>
+<li>LSM-Tree 是否能设计成高写吞吐、低写延迟？</li>
+</ul>
+<p>两阶段评估：</p>
+<ul>
+<li>测试阶段，尽可能多的写测量最大写吞吐</li>
+<li>运行阶段，以接近实测最大写吞吐的数据达到率，评估写停滞</li>
+</ul>
+<p>实现上面临的挑战：</p>
+<ul>
+<li>如何准确测量出 LSM-Tree 的最大写入吞吐？</li>
+<li>如何对 LSM-Tree 的 IO 操作进行最优调度，从而在运行时最小化写停滞？</li>
+</ul>
+<p>实验结果：</p>
+<ul>
+<li><p>LSM-Tree 的合并调度器的策略确实会对写停滞带来很大的影响</p>
+</li>
+<li><p>作者听出一种新的合并调度器来解决挑战</p>
+</li>
+<li><p>通过他们的方法和设置，LSM-Tree 能够同时保证较高的吞吐和较低的写停滞</p>
+</li>
+</ul>
+<h5 id="Merge-Policy"><a href="#Merge-Policy" class="headerlink" title="Merge Policy"></a>Merge Policy</h5><ul>
+<li>Leveling Merge Policy 分级合并（适用于读密集型）<strong>Leveldb</strong></li>
+</ul>
+<blockquote>
+<p>每一层的文件大小相对均匀，level i+1 比 level i 固定大 T 倍</p>
+<p>减少读放大，查询快延迟低：每层文件大小均匀，需要访问的文件数少</p>
+<p>空间利用率高</p>
+<p>增加写放大：合并频繁，IO 写操作过多</p>
+</blockquote>
+<ul>
+<li>Tiering Merge Policy 分层合并（适用于写密集型）</li>
+</ul>
+<blockquote>
+<p>每一层包含一组文件，当每层文件数或总大小达到阈值时，触发合并</p>
+<p>高效写入：批量合并，降低前一种频繁合并的写放大</p>
+<p>空间利用率低</p>
+<p>增加读放大：读取操作需要扫描更多的文件</p>
+</blockquote>
+<p><img src="/img/image-20240606102336204.png" srcset="/img/loading.gif" lazyload alt="image-20240606102336204"></p>
+<p>评测部分 性能度量的三个指标：</p>
+<ul>
+<li>Arrival Rate：客户端提交写操作的速率</li>
+<li>Processing Rate：LSM-Tree 可以处理写操作的速率</li>
+<li>Write Throughput：LSM-Tree 单位时间内处理的写次数</li>
+</ul>
+<h5 id="LSM-Tree-的写入代价"><a href="#LSM-Tree-的写入代价" class="headerlink" title="LSM-Tree 的写入代价"></a>LSM-Tree 的写入代价</h5><p>由LSM-Tree设计和工作负载决定，而不是由如何执行合并确定；</p>
+<p>但不同的调度选择会影响 LSM-Tree 的写延迟，通过精心设计合并调度能最小化写延迟；</p>
+<p>提出一种 greedy scheduler：</p>
+<ul>
+<li><p>优先将 IO 带宽分配给当前 k 个最小的合并操作，即使大的合并会 starve</p>
+</li>
+<li><p>这k个合并由于在不同的层级，可以并发执行</p>
+</li>
+<li><p>目的：greedy 策略能够在任意时刻最小化磁盘上的组件数量，组件数量越少，写放大越低</p>
+</li>
+</ul>
+<p>但这种策略在不同的 LSM-Tree 合并模式下性能表现不同</p>
+<p>Tiering 显著好于 leveling，在 leveldb 下的性能表现不太行</p>
+<p>single：单线程一个接一个层合并，是当前 leveldb 的默认策略；</p>
+<p>fair：公平调度策略，当前 Rocksdb 的默认策略；</p>
+<p><img src="/img/image-20240708170922889.png" srcset="/img/loading.gif" lazyload alt="image-20240708170922889"></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/LSM-Tree/" class="print-no-link">#LSM-Tree</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>LSM-Tree 缓解写放大 论文阅读笔记</div>
+      <div>https://yanghy233.github.io/2024/10/22/lsm-tree-schedule/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年10月22日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/05/30/io-passthru/" title="I/O Passthru (FAST 24) 论文笔记">
+                        <span class="hidden-mobile">I/O Passthru (FAST 24) 论文笔记</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
