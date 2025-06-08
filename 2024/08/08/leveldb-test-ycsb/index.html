@@ -1,0 +1,1075 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="1、YCSB Leveldb 测试由于 leveldb 不提供 java 版本的接口，并且没有合适开源的 jni 转换代码，YCSB 无法直接使用  两种测试方式：  服务端中间件  leveldb 本身没有服务端，没有 restful 接口，需要通过开源中间件进行交互： simplehttp 和 simpleleveldb 目标数据库（比如 leveldb）需要作为服务端运行起来，并提供数据库操">
+<meta property="og:type" content="article">
+<meta property="og:title" content="leveldb, Rocksdb 性能实验 (YCSB)">
+<meta property="og:url" content="https://yanghy233.github.io/2024/08/08/leveldb-test-ycsb/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="1、YCSB Leveldb 测试由于 leveldb 不提供 java 版本的接口，并且没有合适开源的 jni 转换代码，YCSB 无法直接使用  两种测试方式：  服务端中间件  leveldb 本身没有服务端，没有 restful 接口，需要通过开源中间件进行交互： simplehttp 和 simpleleveldb 目标数据库（比如 leveldb）需要作为服务端运行起来，并提供数据库操">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240523195216109.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240527144124076.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240910151953030.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240910163857662.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240603195057725.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240830170549665.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240830170755059.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240924214842072.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240603182036578.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240603182047349.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240910143556561.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240914103732318.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240914100232317.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927095140967.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927095041351.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926144635322.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926154204091.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927095041351.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927100826000.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927094429819.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927094721128.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927210848083.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927200727554.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240927200839543.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926172615807.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926174635624.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926201251191.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926202614471.png">
+<meta property="og:image" content="https://yanghy233.github.io/img/image-20240926204039528.png">
+<meta property="article:published_time" content="2024-08-08T08:27:27.000Z">
+<meta property="article:modified_time" content="2025-06-08T08:32:08.872Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="leveldb">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yanghy233.github.io/img/image-20240523195216109.png">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>leveldb, Rocksdb 性能实验 (YCSB) - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="leveldb, Rocksdb 性能实验 (YCSB)"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-08-08 16:27" pubdate>
+          2024年8月8日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          2.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          22 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">leveldb, Rocksdb 性能实验 (YCSB)</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h5 id="1、YCSB-Leveldb-测试"><a href="#1、YCSB-Leveldb-测试" class="headerlink" title="1、YCSB Leveldb 测试"></a>1、YCSB Leveldb 测试</h5><p>由于 leveldb 不提供 java 版本的接口，并且没有合适开源的 jni 转换代码，YCSB 无法直接使用 </p>
+<p>两种测试方式：</p>
+<ul>
+<li><h5 id="服务端中间件"><a href="#服务端中间件" class="headerlink" title="服务端中间件"></a>服务端中间件</h5></li>
+</ul>
+<p>leveldb 本身没有服务端，没有 restful 接口，需要通过开源中间件进行交互：</p>
+<p>simplehttp 和 simpleleveldb</p>
+<p>目标数据库（比如 leveldb）需要作为服务端运行起来，并提供数据库操作的 Restful API 接口供调用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">http://localhost:8080/put    <br>http://localhost:8080/get<br>http://localhost:8080/del<br></code></pre></td></tr></table></figure>
+
+
+
+<ul>
+<li><h5 id="基于-C-重写的-YCSB（开源的）"><a href="#基于-C-重写的-YCSB（开源的）" class="headerlink" title="基于 C++ 重写的 YCSB（开源的）"></a>基于 C++ 重写的 YCSB（开源的）</h5></li>
+</ul>
+<p>膜拜大佬ing</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">https://github.com/basicthinker/YCSB-C<br>https://github.com/ls4154/YCSB-cpp<br></code></pre></td></tr></table></figure>
+
+
+
+<h5 id="2、Rocksdb-YCSB-测试原理"><a href="#2、Rocksdb-YCSB-测试原理" class="headerlink" title="2、Rocksdb YCSB 测试原理"></a>2、Rocksdb YCSB 测试原理</h5><p>rocksdb 专门为 java 写了一版 jni 的转换方法，直接将 rocksdb 编译成 jni 并用 jar 打包，放到 ycsb lib 下进行调用即可</p>
+<h5 id="3、基于服务端中间件的-leveldb-测试步骤"><a href="#3、基于服务端中间件的-leveldb-测试步骤" class="headerlink" title="3、基于服务端中间件的 leveldb 测试步骤"></a>3、基于服务端中间件的 leveldb 测试步骤</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_"># </span><span class="language-bash">get simplehttp</span><br>git clone https://github.com/bitly/simplehttp.git<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">get leveldb, install .a and .h to /usr/local</span><br>git clone --recurse-submodules https://github.com/google/leveldb.git<br>mkdir -p build &amp;&amp; cd build<br>cmake -DCMAKE_BUILD_TYPE=Release .. &amp;&amp; cmake --build .<br>sudo make install<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">install dependency</span><br>sudo apt install libjson-c-dev<br>sudo apt install libsnappy-dev<br><br>打开 simplehttp/simpleleveldb/str_list_set.c修改 <br><span class="hljs-meta prompt_">#</span><span class="language-bash">include &lt;json/json.h&gt; 为 <span class="hljs-comment">#include &lt;json-c/json.h&gt;</span></span><br>打开 simplehttp/simpleleveldb/simpleleveldb.c修改 <br><span class="hljs-meta prompt_">#</span><span class="language-bash">include &lt;json/json.h&gt; 为 <span class="hljs-comment">#include &lt;json-c/json.h&gt;</span></span><br><br>simpleleveldb 的 Makefile<br>-ljson应改为-ljson-c<br></code></pre></td></tr></table></figure>
+
+
+
+<p>simpleHttp 库制定 libevent1.4 作为依赖，去官网下载</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs shell">tar -zxvf libevent-release-1.4.15-stable.tar<br>sudo apt-get install libtool<br>cd libevent-release-1.4.15-stable<br>./autogen.sh<br>./configure<br>make -j$(nproc)<br>sudo make install<br>sudo ln -s /usr/local/lib/libevent-1.4.so.2 /usr/lib/libevent-1.4.so.2<br></code></pre></td></tr></table></figure>
+
+
+
+<p>可能的错误：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs shell">No Python installed<br>... ...<br>regress.c:65:10: fatal error: regress.gen.h: No such file or directory<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">解决方案</span><br>vim ./event_rpcgen.py<br><span class="hljs-meta prompt_"># </span><span class="language-bash">首行 python 改为 python2</span><br></code></pre></td></tr></table></figure>
+
+
+
+<p>安装依赖库：simplehttp，simpleleveldb</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs shell">cd simplehttp<br>env LIBLEVELDB=/usr/local make<br>sudo make install<br><br>cd simpleleveldb<br>env LIBLEVELDB=/usr/local make<br>sudo make install<br></code></pre></td></tr></table></figure>
+
+
+
+<p>可能的错误：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs shell">cc -I. -I../simplehttp/.. -I/usr/local/include -I/usr/local/include -Wall -g -O2  -o simpleleveldb simpleleveldb.c str_list_set.c -L. -L../simplehttp -L/usr/local/lib -L/usr/local/lib -L/usr/local/lib -levent -ljson-c -lsimplehttp -lleveldb -lm -lstdc++ -lsnappy -lpthread<br>/usr/bin/ld: /usr/local/lib/libsimplehttp.a(request.o):/home/zhdi/simplehttp/simplehttp/request.h:12: multiple definition of `simplehttp_reqs&#x27;; /usr/local/lib/libsimplehttp.a(simplehttp.o):/home/zhdi/simplehttp/simplehttp/request.h:12: first defined here<br>collect2: error: ld returned 1 exit status<br>make: *** [Makefile:26: simpleleveldb] Error 1<br></code></pre></td></tr></table></figure>
+
+
+
+<p>原因：</p>
+<blockquote>
+<p>链接多次导致，试着把多声明的变成 extern 也许可以解决</p>
+<p>本质原因还是 libsimplehttp.a 静态库有问题，实在不行找我，我这有编译没问题的静态库</p>
+</blockquote>
+<h5 id="服务端启动-leveldb"><a href="#服务端启动-leveldb" class="headerlink" title="服务端启动 leveldb"></a>服务端启动 leveldb</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">simpleleveldb --address=localhost --port=8080 --db-file=./leveldb_file<br></code></pre></td></tr></table></figure>
+
+
+
+<h5 id="检查是否成功"><a href="#检查是否成功" class="headerlink" title="检查是否成功"></a>检查是否成功</h5><p>方案1：</p>
+<p>打开浏览器，地址栏输入<br><a target="_blank" rel="noopener" href="http://localhost:8080/put?key=name&value=Niko">http://localhost:8080/put?key=name&amp;value=Niko</a></p>
+<p><img src="/img/image-20240523195216109.png" srcset="/img/loading.gif" lazyload alt="image-20240523195216109"></p>
+<p>方案2：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs shell">curl -X GET &quot;http://localhost:8080/put?key=name&amp;value=Niko&quot;<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash"><span class="hljs-built_in">return</span>: json status:OK</span><br></code></pre></td></tr></table></figure>
+
+
+
+<h5 id="用-ycsb-leveldb-git-测试-leveldb（已放弃）"><a href="#用-ycsb-leveldb-git-测试-leveldb（已放弃）" class="headerlink" title="用 ycsb-leveldb.git 测试 leveldb（已放弃）"></a>用 ycsb-leveldb.git 测试 leveldb（已放弃）</h5><p>安装 YCSB：（有专门针对 leveldb 的）</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs shell">git clone https://github.com/jtsui/ycsb-leveldb.git<br>cd ycsb-leveldb<br>sudo apt install maven<br>mvn -pl com.yahoo.ycsb:leveldb-binding -am clean package<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">配置 JAVA_HOME ~/.bashrc or ~/.zshrc</span><br>export JAVA_HOME=/opt/jdk1.8.0_271<br>export JRE_HOME=$&#123;JAVA_HOME&#125;/jre<br>export CLASSPATH=.:$&#123;JAVA_HOME&#125;/lib:$&#123;JRE_HOME&#125;/lib<br>export PATH=$&#123;JAVA_HOME&#125;/bin:$PATH<br>source ~/.bashrc<br></code></pre></td></tr></table></figure>
+
+
+
+<h5 id="ycsb-负载"><a href="#ycsb-负载" class="headerlink" title="ycsb 负载"></a>ycsb 负载</h5><p>比如：random key-value pairs (8 B key, 1024 B value) are inserted repeatedly on a 90 GB dataset.</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_"># </span><span class="language-bash">vim workload/workload90GB</span><br>recordcount=96774193<br>operationcount=10000<br>workload=com.yahoo.ycsb.workloads.CoreWorkload<br><br>readallfields=true<br><br>readproportion=0<br>updateproportion=0<br>insertproportion=1<br>scanproportion=0<br><br>requestdistribution=zipfian<br>fieldcount=1<br>fieldlength=1024<br>fieldlengthdistribution=constant<br></code></pre></td></tr></table></figure>
+
+
+
+<p>原始数据导入：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">cd ycsb_leveldb<br>./ycsb load leveldb -P workloads/workload90GB -s -p threadcount=16<br></code></pre></td></tr></table></figure>
+
+
+
+<p>数据运行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">./ycsb run leveldb -P workloads/workload90GB -s -p threadcount=16<br></code></pre></td></tr></table></figure>
+
+
+
+<h5 id="4、CPU利用率分析"><a href="#4、CPU利用率分析" class="headerlink" title="4、CPU利用率分析"></a>4、CPU利用率分析</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo apt-get install sysstat<br>mpstat -P ALL 1	# 每秒更新一次每个CPU核心的利用率<br><br>pidstat -p `pidof java` -u 1 500  # 每秒输出一次 CPU 使用统计，共输出 500 次<br>pidstat -p `pidof java` -r 1 500  # 每秒输出一次内存使用统计，共输出 500 次<br>pidstat -p `pidof java` -d 1 500  # 每秒输出一次 I/O 活动统计，共输出 500 次<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+<p>测试 redis 性能</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs shell">git clone https://github.com/redis/redis.git<br>make<br>./src/redis-server<br><br>cd ycsb<br>./bin/ycsb load redis -s -P workloads/workload90GB -p &quot;redis.host=127.0.0.1&quot; -p &quot;redis.port=6379&quot;<br>./bin/ycsb run redis -s -P workloads/workload90GB -p &quot;redis.host=127.0.0.1&quot; -p &quot;redis.port=6379&quot;<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+<p>测试 rocksdb 性能</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">./bin/ycsb load rocksdb -s -P workloads/workload90GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data<br>./bin/ycsb run rocksdb -s -P workloads/workload90GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+<h2 id="修改-rocksdb-源码后如何进行测试"><a href="#修改-rocksdb-源码后如何进行测试" class="headerlink" title="修改 rocksdb 源码后如何进行测试"></a>修改 rocksdb 源码后如何进行测试</h2><p>以编译 rocksdb v7.6.0 为例</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs shell">git clone https://github.com/facebook/rocksdb.git<br>cd rocksdb <br>git checkout v7.6.0<br></code></pre></td></tr></table></figure>
+
+
+
+<p>更改makefile，压缩方式选 lz4 和 zstd 就行，其他三种特别是snappy对linux兼容不如mac</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-comment"># 1.只选后两种压缩方式</span><br><span class="hljs-keyword">ifneq</span> (<span class="hljs-variable">$(ROCKSDB_JAVA_NO_COMPRESSION)</span>, 1)<br>JAVA_COMPRESSIONS = liblz4.a libzstd.a<br><span class="hljs-keyword">endif</span><br><br>JAVA_STATIC_FLAGS = -DLZ4 -DZSTD<br>JAVA_STATIC_INCLUDES = -I./lz4-<span class="hljs-variable">$(LZ4_VER)</span>/lib -I./zstd-<span class="hljs-variable">$(ZSTD_VER)</span>/lib -I./zstd-<span class="hljs-variable">$(ZSTD_VER)</span>/lib/dictBuilder<br><br><span class="hljs-comment"># 2.关掉 Werror</span><br><span class="hljs-comment"># WARNING_FLAGS += -Werror</span><br><br><span class="hljs-comment"># 3.兼容 linux，没有 mac gcc 的-arch选项</span><br><span class="hljs-keyword">ifeq</span> (<span class="hljs-variable">$(JAVA_HOME)</span>,)<br>	<span class="hljs-variable">$(<span class="hljs-built_in">error</span> JAVA_HOME is not set)</span><br><span class="hljs-keyword">endif</span><br>	<span class="hljs-variable">$(MAKE)</span> clean-ext-libraries-bin<br>	<span class="hljs-variable">$(MAKE)</span> clean-rocks<br>	<span class="hljs-comment"># ARCHFLAG=&quot;-arch $*&quot; $(MAKE) rocksdbjavastatic_deps</span><br>	ARCHFLAG= <span class="hljs-variable">$(MAKE)</span> rocksdbjavastatic_deps<br>	<span class="hljs-comment"># ARCHFLAG=&quot;-arch $*&quot; $(MAKE) rocksdbjavastatic_libobjects</span><br>	ARCHFLAG= <span class="hljs-variable">$(MAKE)</span> rocksdbjavastatic_libobjects<br>	<span class="hljs-comment"># ARCHFLAG=&quot;-arch $*&quot; ROCKSDBJNILIB=&quot;librocksdbjni-osx-$*.jnilib&quot; $(MAKE) rocksdbjavastatic_javalib</span><br>	ARCHFLAG= ROCKSDBJNILIB=<span class="hljs-string">&quot;librocksdbjni-osx-<span class="hljs-variable">$*</span>.jnilib&quot;</span> <span class="hljs-variable">$(MAKE)</span> rocksdbjavastatic_javalib<br>	<br><span class="hljs-comment"># 4.注释掉跨平台编译项</span><br><span class="hljs-section">rocksdbjavastaticrelease: rocksdbjavastaticosx rocksdbjava_javadocs_jar rocksdbjava_sources_jar</span><br>	<span class="hljs-comment"># cd java/crossbuild &amp;&amp; (vagrant destroy -f || true) &amp;&amp; vagrant up linux32 &amp;&amp; vagrant halt linux32 &amp;&amp; vagrant up linux64 &amp;&amp; vagrant halt linux64 &amp;&amp; vagrant up linux64-musl &amp;&amp; vagrant halt linux64-musl</span><br>	cd java; <span class="hljs-variable">$(JAR_CMD)</span> -cf target/<span class="hljs-variable">$(ROCKSDB_JAR_ALL)</span> HISTORY*.md<br>	<span class="hljs-comment"># cd java/target; $(JAR_CMD) -uf $(ROCKSDB_JAR_ALL) librocksdbjni-*.so librocksdbjni-*.jnilib</span><br>	cd java/target;jar -uf <span class="hljs-variable">$(ROCKSDB_JAR_ALL)</span> librocksdbjni-*.so<br>	cd java/target/classes; <span class="hljs-variable">$(JAR_CMD)</span> -uf ../<span class="hljs-variable">$(ROCKSDB_JAR_ALL)</span> org/rocksdb/*.class org/rocksdb/util/*.class<br>	openssl sha1 java/target/<span class="hljs-variable">$(ROCKSDB_JAR_ALL)</span> | sed &#x27;s/.*= \([0-9a-f]*\)/\1/&#x27; &gt; java/target/<span class="hljs-variable">$(ROCKSDB_JAR_ALL)</span>.sha1<br></code></pre></td></tr></table></figure>
+
+
+
+<p>编译 jni（java native interface）</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_"># </span><span class="language-bash">This will generate rocksdbjni.jar and librocksdbjni.so</span><br>make -j$(nproc) rocksdbjava <br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">检查</span><br>rocksdb/java/target/rocksdbjni-7.6.0-linux64.jar<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">rocksdbjni.jar: 提供rocksdb java接口</span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">librocksdbjni.so: 提供C++的rocksdb库，并转换成java native接口供jar包调用</span><br></code></pre></td></tr></table></figure>
+
+
+
+<h3 id="方法一：基于打包好的-ycsb-0-17-0-tar-gz"><a href="#方法一：基于打包好的-ycsb-0-17-0-tar-gz" class="headerlink" title="方法一：基于打包好的 ycsb-0.17.0.tar.gz"></a>方法一：基于打包好的 ycsb-0.17.0.tar.gz</h3><p>小缺点：无法自己修改 ycsb 源码</p>
+<p>替换ycsb下的 rocksdb jni jar 包</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs shell">curl -O --location https://github.com/brianfrankcooper/YCSB/releases/download/0.17.0/ycsb-0.17.0.tar.gz<br>tar xfvz ycsb-0.17.0.tar.gz<br>cd ycsb-0.17.0<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">编译 rocksdb-binding java项目</span><br>mvn -pl site.ycsb:rocksdb-binding -am clean package<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">若要运行修改前的rocksdb版本</span><br>./bin/ycsb load rocksdb -s -P workloads/workload10GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data<br><span class="hljs-meta prompt_"># </span><span class="language-bash">可以看到第一行：rocksdb的版本 5.11.3</span><br>vim /tmp/ycsb-rocksdb-data/LOG<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">替换jar包</span><br>cp rocksdb/java/target/rocksdbjni-7.6.0-linux64.jar ycsb-0.17.0/rocksdb-binding/lib<br>rm rocksdbjni-5.11.3.jar<br>rm -rf /tmp/ycsb-rocksdb-data<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">重新启动测试</span><br>./bin/ycsb load rocksdb -s -P workloads/workload90GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data<br>./bin/ycsb run rocksdb -s -P workloads/workload90GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data<br></code></pre></td></tr></table></figure>
+
+
+
+<h3 id="方法二：基于-YCSB-git"><a href="#方法二：基于-YCSB-git" class="headerlink" title="方法二：基于 YCSB.git"></a>方法二：基于 YCSB.git</h3><p>可以自由修改源码：</p>
+<p>比如：</p>
+<p>自定义每隔1秒输出吞吐：<a target="_blank" rel="noopener" href="https://github.com/yanghy233/YCSB/commit/8b9a58cdddde3773445bd41b94f312d37da2a1e0">https://github.com/yanghy233/YCSB/commit/8b9a58cdddde3773445bd41b94f312d37da2a1e0</a></p>
+<p>自定义 rocksdb jni 包在本地导入</p>
+<p><img src="/img/image-20240527144124076.png" srcset="/img/loading.gif" lazyload alt="image-20240527144124076"></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs shell">git clone https://github.com/yanghy233/YCSB.git<br>git checkout 0.17.0-yhy<br>mvn -pl site.ycsb:rocksdb-binding -am clean package<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+
+
+<p>若要重新编译 YCSB rocksdb client</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_"># </span><span class="language-bash">不加 clean</span><br>mvn -pl site.ycsb:rocksdb-binding -am package<br></code></pre></td></tr></table></figure>
+
+<h2 id="基于C-实现的YCSB-C，专门用于测试CruiseDB"><a href="#基于C-实现的YCSB-C，专门用于测试CruiseDB" class="headerlink" title="基于C++实现的YCSB-C，专门用于测试CruiseDB"></a>基于C++实现的YCSB-C，专门用于测试CruiseDB</h2><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo apt-get install libtbb-dev<br>git clone git@github.com:yanghy233/YCSB-C.git<br>cd YCSB-C<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">先到CruiseDB目录下编译</span><br>make static_lib -j$(nproc)<br>make shared_lib -j$(nproc)<br>sudo DEBUG_LEVEL=0 make uninstall<br>sudo DEBUG_LEVEL=0 make install<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">链接与编译</span><br>export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib<br>make<br>mkdir ramdisk_path rocksdb_disk_path<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">运行测试脚本</span><br>./ycsba.sh<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+
+
+
+
+<h2 id="基于c-实现的-ycsb-cpp，可以在cpp层面直接测试leveldb"><a href="#基于c-实现的-ycsb-cpp，可以在cpp层面直接测试leveldb" class="headerlink" title="基于c++实现的 ycsb-cpp，可以在cpp层面直接测试leveldb"></a>基于c++实现的 ycsb-cpp，可以在cpp层面直接测试leveldb</h2><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs shell">git clone https://github.com/ls4154/YCSB-cpp.git<br><br>git submodule update --init<br>mkdir build<br>cd build<br><span class="hljs-meta prompt_"># </span><span class="language-bash">leveldb</span><br>cmake -DBIND_LEVELDB=1 -DWITH_SNAPPY=1 -DWITH_LZ4=1 -DWITH_ZSTD=1 ..<br><span class="hljs-meta prompt_"># </span><span class="language-bash">rocksdb</span><br>cmake -DBIND_ROCKSDB=1 -DWITH_SNAPPY=1 -DWITH_LZ4=1 -DWITH_ZSTD=1 ..<br>make -j$(nproc)<br></code></pre></td></tr></table></figure>
+
+
+
+<p>Load &amp; Run</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_"># </span><span class="language-bash">leveldb</span><br>./build/ycsb -load -db leveldb -P workloads/workload10GB -P leveldb/leveldb.properties -s<br>taskset -c 0 ./build/ycsb -run -db leveldb -P workloads/workload10GB -P leveldb/leveldb.properties -s<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">rocksdb</span><br>./build/ycsb -load -db rocksdb -P workloads/workloadb -P rocksdb/rocksdb.properties -s<br>./build/ycsb -run -db rocksdb -P workloads/workloadb -P rocksdb/rocksdb.properties -s<br></code></pre></td></tr></table></figure>
+
+
+
+<h4 id="修改leveldb源码后，测试前需要更新静态库"><a href="#修改leveldb源码后，测试前需要更新静态库" class="headerlink" title="修改leveldb源码后，测试前需要更新静态库"></a>修改leveldb源码后，测试前需要更新静态库</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo rm -rf /usr/local/include/leveldb /usr/local/lib64/cmake/leveldb /usr/local/lib64/libleveldb.a /usr/local/share/doc/leveldb \<br>/usr/local/lib/libleveldb.a \<br>/usr/local/lib/cmake/leveldb \<br>/usr/local/lib/cmake/leveldb/leveldbConfig.cmake \<br>/usr/local/lib/cmake/leveldb/leveldbConfigVersion.cmake \<br>/usr/local/lib/cmake/leveldb/leveldbTargets.cmake \<br>/usr/local/lib/cmake/leveldb/leveldbTargets-release.cmake <br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_">#</span><span class="language-bash"><span class="hljs-comment">## 删除之后，一定要到 YCSB-cpp, 删除build，重新编译</span></span><br><br>rm -rf /tmp/ycsb-leveldb<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash"><span class="hljs-built_in">cd</span> leveldb/build</span><br>cmake -DCMAKE_BUILD_TYPE=Release .. &amp;&amp; cmake --build .<br>sudo make install<br></code></pre></td></tr></table></figure>
+
+
+
+<h4 id="火焰图生成与分析"><a href="#火焰图生成与分析" class="headerlink" title="火焰图生成与分析"></a>火焰图生成与分析</h4><p>一些避坑记录：</p>
+<ul>
+<li>leveldb 一定需要 release 版本，否则会出现两个 pid</li>
+<li>perf 记录不能使用默认的 -g，要用 –call-graph dwarf，否则出现大量的 unknown 调用栈</li>
+<li>无需绑定到单一核心</li>
+<li>用 Centos8.2跑，ubuntu22有问题</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_"># </span><span class="language-bash">perf 记录运行时</span><br>sudo perf record -F 999 -p `pidof ./build/ycsb` --call-graph dwarf -o ~/Experiment_Data/perf.data<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">以文本形式展开</span><br>sudo perf script -i ~/Experiment_Data/perf.data &gt; ~/Experiment_Data/perf.unfold<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">生成脚本文件</span><br>./FlameGraph/stackcollapse-perf.pl ~/Experiment_Data/perf.unfold &gt; ~/Experiment_Data/perf.folded<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">生成火焰图</span><br>./FlameGraph/flamegraph.pl ~/Experiment_Data/perf.folded &gt; ~/Experiment_Data/flame.svg<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+
+
+<h2 id="leveldb-性能实验"><a href="#leveldb-性能实验" class="headerlink" title="leveldb 性能实验"></a>leveldb 性能实验</h2><p>配置：</p>
+<table>
+<thead>
+<tr>
+<th>硬件</th>
+<th>Model</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CPU</td>
+<td>2核 Intel Xeon Processor (Cascadelake)</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>DDR4 16GB&#x2F; <strong>32 GB</strong></td>
+</tr>
+<tr>
+<td>Storage</td>
+<td>NVMe SSD 300GB</td>
+</tr>
+<tr>
+<td><strong>软件</strong></td>
+<td><strong>Version</strong></td>
+</tr>
+<tr>
+<td>OS</td>
+<td>Ubuntu 22.04 LTS</td>
+</tr>
+<tr>
+<td>Kernel</td>
+<td>Linux 6.2</td>
+</tr>
+<tr>
+<td>Leveldb</td>
+<td>Latest</td>
+</tr>
+<tr>
+<td>Rocksdb</td>
+<td>v7.6.0</td>
+</tr>
+<tr>
+<td>YCSB Benchmark</td>
+<td>0.17.0</td>
+</tr>
+</tbody></table>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs shell">CPU：2核 Intel Xeon<br>memory：16GB<br>YCSB版本：https://github.com/yanghy233/YCSB-cpp<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">loading 0.1GB</span><br>rm -rf /tmp/ycsb-leveldb<br>./build/ycsb -load -db leveldb -P workloads/workload10GB -P leveldb/leveldb.properties -s<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">running 50G</span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">ycsb：默认-threads 1，绑定CPU核心0</span><br>taskset -c 0 ./build/ycsb -run -db leveldb -P workloads/workload10GB -P leveldb/leveldb.properties -s &gt; ~/Experiment_Data/leveldb_ycsb.log<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">每秒记录一次CPU利用率</span><br>pidstat -p `pidof ./build/ycsb` -u 1 1400 &gt; ~/Experiment_Data/leveldb_cpu.log<br></code></pre></td></tr></table></figure>
+
+
+
+<p>实验结果：</p>
+<h3 id="100-Insert-起始数据量-10GB"><a href="#100-Insert-起始数据量-10GB" class="headerlink" title="100% Insert   起始数据量 10GB"></a>100% Insert   起始数据量 10GB</h3><p>内存32G：吞吐量</p>
+<p><img src="/img/image-20240910151953030.png" srcset="/img/loading.gif" lazyload alt="image-20240910151953030"></p>
+<p>我们的方案：</p>
+<p><img src="/img/image-20240910163857662.png" srcset="/img/loading.gif" lazyload alt="image-20240910163857662"></p>
+<p>CPU 利用率</p>
+<p><img src="/img/image-20240603195057725.png" srcset="/img/loading.gif" lazyload alt="image-20240603195057725"></p>
+<p>0830:</p>
+<p>ours：</p>
+<p><img src="/img/image-20240830170549665.png" srcset="/img/loading.gif" lazyload alt="image-20240830170549665"></p>
+<p>origin：</p>
+<p><img src="/img/image-20240830170755059.png" srcset="/img/loading.gif" lazyload alt="image-20240830170755059"></p>
+<h3 id="60-Insert-40-Read-起始数据量-10GB"><a href="#60-Insert-40-Read-起始数据量-10GB" class="headerlink" title="60% Insert, 40% Read 	起始数据量 10GB"></a>60% Insert, 40% Read 	起始数据量 10GB</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs shell">cd YCSB-cpp<br><br>rm -rf /tmp/ycsb-leveldb<br>./build/ycsb -load -db leveldb -P workloads/workload10GB -P leveldb/leveldb.properties -s<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">ops</span><br>taskset -c 0 ./build/ycsb -run -db leveldb -P workloads/workload10GB -P leveldb/leveldb.properties -s &gt; ~/Experiment_Data/leveldb_ycsb_6i4r.log<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">cpu</span><br>pidstat -p `pidof ./build/ycsb` -u 1 1400 &gt; ~/Experiment_Data/leveldb_cpu_6i4r.log<br><br></code></pre></td></tr></table></figure>
+
+
+
+<p><img src="/img/image-20240924214842072.png" srcset="/img/loading.gif" lazyload alt="image-20240924214842072"></p>
+<p>workloads&#x2F;workload10GB</p>
+<p>0~300：6,121,420</p>
+<p>300~600：4,698,732</p>
+<p>600~900：3,784,508</p>
+<p>900~1200：2,980,646</p>
+<h5 id="吞吐量"><a href="#吞吐量" class="headerlink" title="吞吐量"></a>吞吐量</h5><p><img src="/img/image-20240603182036578.png" srcset="/img/loading.gif" lazyload alt="image-20240603182036578"></p>
+<h5 id="CPU-利用率"><a href="#CPU-利用率" class="headerlink" title="CPU 利用率"></a>CPU 利用率</h5><p><img src="/img/image-20240603182047349.png" srcset="/img/loading.gif" lazyload alt="image-20240603182047349"></p>
+<h2 id="Rocksdb-v7-6-0-性能实验"><a href="#Rocksdb-v7-6-0-性能实验" class="headerlink" title="Rocksdb v7.6.0 性能实验"></a>Rocksdb v7.6.0 性能实验</h2><p>配置：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs shell">CPU：2核 Intel Xeon<br>memory：16GB<br>YCSB版本：0.17.0<br>./ycsb_0.17.0_yhy<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">loading 10G</span><br>rm -rf /tmp/ycsb-rocksdb-data<br>./bin/ycsb load rocksdb -s -P workloads/workload10GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">running 50G</span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">ycsb：默认-threads 1，绑定CPU核心0</span><br>taskset -c 0 ./bin/ycsb run rocksdb -s -P workloads/workload10GB -p rocksdb.dir=/tmp/ycsb-rocksdb-data -p measurementtype=timeseries &gt; ~/Experiment_Data/rocksdb_ycsb.log<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">每秒记录一次CPU利用率</span><br>pidstat -p `pidof java` -u 1 1400 &gt; ~/Experiment_Data/rocksdb_cpu.log<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">统一用 YCSB-cpp</span><br>rm -rf /tmp/ycsb-rocksdb<br>./build/ycsb -load -db rocksdb -P workloads/workload10GB -P rocksdb/rocksdb.properties -s<br><span class="hljs-meta prompt_"></span><br><span class="hljs-meta prompt_"># </span><span class="language-bash">running</span><br>./build/ycsb -run -db rocksdb -P workloads/workload10GB -P rocksdb/rocksdb.properties -s &gt; ~/Experiment_Data/rocksdb_ycsb.log<br></code></pre></td></tr></table></figure>
+
+
+
+
+
+<h3 id="100-Insert"><a href="#100-Insert" class="headerlink" title="100% Insert"></a>100% Insert</h3><h4 id="起始10G，insert-50G"><a href="#起始10G，insert-50G" class="headerlink" title="起始10G，insert 50G"></a>起始10G，insert 50G</h4><p>实验结果：</p>
+<h4 id="吞吐量-1"><a href="#吞吐量-1" class="headerlink" title="吞吐量"></a>吞吐量</h4><p><img src="/img/image-20240910143556561.png" srcset="/img/loading.gif" lazyload alt="image-20240910143556561"></p>
+<p>前 800s 吞吐：</p>
+<p><img src="/img/image-20240914103732318.png" srcset="/img/loading.gif" lazyload alt="image-20240914103732318"></p>
+<p><img src="/img/image-20240914100232317.png" srcset="/img/loading.gif" lazyload alt="image-20240914100232317"></p>
+<h2 id="CruiseDB-性能测试"><a href="#CruiseDB-性能测试" class="headerlink" title="CruiseDB 性能测试"></a>CruiseDB 性能测试</h2><p>in YCSB-C，32c 32G</p>
+<p>YCSB threadcount&#x3D;100</p>
+<p>默认 value &#x3D; 1024B，</p>
+<p>短时间内相对平稳：</p>
+<ul>
+<li><h5 id="按照论文图片，y轴间隔3万"><a href="#按照论文图片，y轴间隔3万" class="headerlink" title="按照论文图片，y轴间隔3万"></a>按照论文图片，y轴间隔3万</h5></li>
+</ul>
+<p>（cruisedb_1024B.txt）</p>
+<p><img src="/img/image-20240927095140967.png" srcset="/img/loading.gif" lazyload alt="image-20240927095140967"></p>
+<ul>
+<li><h5 id="稳定性：用方差-标准差来衡量稳定性的好坏"><a href="#稳定性：用方差-标准差来衡量稳定性的好坏" class="headerlink" title="稳定性：用方差&#x2F;标准差来衡量稳定性的好坏"></a>稳定性：用方差&#x2F;标准差来衡量稳定性的好坏</h5></li>
+</ul>
+<p><img src="/img/image-20240927095041351.png" srcset="/img/loading.gif" lazyload alt="image-20240927095041351"></p>
+<p>Rocksdb + Auto-tuned 测试：（能够提高总吞吐）</p>
+<ul>
+<li>通过水位线窗口动态调控后台 flush &#x2F; compaction IO数量，使后台 IO 数量稳定在一定的范围内</li>
+<li>但无法解决前台 write stall 的问题</li>
+</ul>
+<p><img src="/img/image-20240926144635322.png" srcset="/img/loading.gif" lazyload alt="image-20240926144635322"></p>
+<ul>
+<li>CruiseDB 基础上，打开 Auto-tuned 机制：</li>
+</ul>
+<p><img src="/img/image-20240926154204091.png" srcset="/img/loading.gif" lazyload alt="image-20240926154204091"></p>
+<h4 id="总吞吐量（平均吞吐）的对比、稳定性（标准差）的对比"><a href="#总吞吐量（平均吞吐）的对比、稳定性（标准差）的对比" class="headerlink" title="总吞吐量（平均吞吐）的对比、稳定性（标准差）的对比"></a>总吞吐量（平均吞吐）的对比、稳定性（标准差）的对比</h4><ul>
+<li><h5 id="100-write"><a href="#100-write" class="headerlink" title="100%write"></a>100%write</h5><ul>
+<li><h5 id="CruiseDB"><a href="#CruiseDB" class="headerlink" title="CruiseDB"></a>CruiseDB</h5></li>
+</ul>
+<p><img src="/img/image-20240927095041351.png" srcset="/img/loading.gif" lazyload alt="image-20240927095041351"></p>
+<ul>
+<li><h5 id="RocksDB"><a href="#RocksDB" class="headerlink" title="RocksDB"></a>RocksDB</h5></li>
+</ul>
+<p>rocksdb_i1r0.txt</p>
+</li>
+</ul>
+<p><img src="/img/image-20240927100826000.png" srcset="/img/loading.gif" lazyload alt="image-20240927100826000"></p>
+<ul>
+<li><h5 id="50-read，50-write"><a href="#50-read，50-write" class="headerlink" title="50%read，50%write"></a>50%read，50%write</h5><ul>
+<li><h5 id="CruiseDB-1"><a href="#CruiseDB-1" class="headerlink" title="CruiseDB"></a>CruiseDB</h5></li>
+</ul>
+<p><img src="/img/image-20240927094429819.png" srcset="/img/loading.gif" lazyload alt="image-20240927094429819"></p>
+<ul>
+<li><h5 id="RocksDB-1"><a href="#RocksDB-1" class="headerlink" title="RocksDB"></a>RocksDB</h5></li>
+</ul>
+</li>
+</ul>
+<p><img src="/img/image-20240927094721128.png" srcset="/img/loading.gif" lazyload alt="image-20240927094721128"></p>
+<h4 id="理想情况下的最大吞吐"><a href="#理想情况下的最大吞吐" class="headerlink" title="理想情况下的最大吞吐"></a>理想情况下的最大吞吐</h4><ul>
+<li><p>针对大量写负载</p>
+</li>
+<li><p>理想情况：不考虑读，LSM-Tree 在磁盘只有 L0 层，并且无限大，只有 Flush IO，没有 Compaction IO</p>
+</li>
+<li><p>得到了理想情况下，充分利用IO的吞吐极限</p>
+</li>
+</ul>
+<p><img src="/img/image-20240927210848083.png" srcset="/img/loading.gif" lazyload alt="image-20240927210848083"></p>
+<h4 id="CruiseDB-关于-L0-层是否移除"><a href="#CruiseDB-关于-L0-层是否移除" class="headerlink" title="CruiseDB 关于 L0 层是否移除"></a>CruiseDB 关于 L0 层是否移除</h4><ul>
+<li><p>论文里提出为了能够减少 IO 次数，移除 LSM-Tree 的 L0 层，即不再有 flush 操作</p>
+</li>
+<li><p>进行实验</p>
+</li>
+</ul>
+<blockquote>
+<p>CruiseDB 最大层数与 Rocksdb 相同，都是最高在第 6 层</p>
+<p>在 YCSB 负载执行期间，异步执行一个后台线程，每隔 5 秒输出各层的文件数量</p>
+<p>分析作者有可能的实现：</p>
+<ul>
+<li>L0 文件数量限制为0，那么每次打印 L0 的数量都应该是 0；</li>
+<li>逐层向上覆盖，原来的 L1 层是现在的 L0 层，则不应该出现 flush 操作；</li>
+</ul>
+</blockquote>
+<p><img src="/img/image-20240927200727554.png" srcset="/img/loading.gif" lazyload alt="image-20240927200727554"></p>
+<p><img src="/img/image-20240927200839543.png" srcset="/img/loading.gif" lazyload alt="image-20240927200839543"></p>
+<h5 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h5><ul>
+<li>kv 为 middle-size &#x3D; 128B，吞吐量如下：</li>
+</ul>
+<p><img src="/img/image-20240926172615807.png" srcset="/img/loading.gif" lazyload alt="image-20240926172615807"></p>
+<ul>
+<li>kv 为 small-size &#x3D; 32B，吞吐量如下：</li>
+</ul>
+<p><img src="/img/image-20240926174635624.png" srcset="/img/loading.gif" lazyload alt="image-20240926174635624"></p>
+<h4 id="CruiseDB冷启动问题发现与解答"><a href="#CruiseDB冷启动问题发现与解答" class="headerlink" title="CruiseDB冷启动问题发现与解答"></a>CruiseDB冷启动问题发现与解答</h4><h5 id="冷启动原因："><a href="#冷启动原因：" class="headerlink" title="冷启动原因："></a>冷启动原因：</h5><ul>
+<li>load 和 run 阶段分开，run才开始流量控制，导致开始时内存容量是满的</li>
+</ul>
+<h5 id="真实的-CruiseDB-负载吞吐（去除论文作者在-YCSB-刻意-sleep-的时间）"><a href="#真实的-CruiseDB-负载吞吐（去除论文作者在-YCSB-刻意-sleep-的时间）" class="headerlink" title="真实的 CruiseDB 负载吞吐（去除论文作者在 YCSB 刻意 sleep 的时间）"></a>真实的 CruiseDB 负载吞吐（去除论文作者在 YCSB 刻意 sleep 的时间）</h5><ul>
+<li>有 130s 的达到稳态的时间间隔（论文的图去掉了达到稳态的 130s 间隔，同时论文作者的YCSB刻意增加了130s的sleep）</li>
+<li>下面实验图经过多次确认！</li>
+</ul>
+<p><img src="/img/image-20240926201251191.png" srcset="/img/loading.gif" lazyload alt="image-20240926201251191"></p>
+<ul>
+<li><h5 id="50-read，50-write-1"><a href="#50-read，50-write-1" class="headerlink" title="50%read，50%write"></a>50%read，50%write</h5></li>
+</ul>
+<p>花了 65s 达到稳态</p>
+<p><img src="/img/image-20240926202614471.png" srcset="/img/loading.gif" lazyload alt="image-20240926202614471"></p>
+<ul>
+<li><h5 id="100-read"><a href="#100-read" class="headerlink" title="100%read"></a>100%read</h5></li>
+</ul>
+<p>花了 40s 达到稳态</p>
+<p><img src="/img/image-20240926204039528.png" srcset="/img/loading.gif" lazyload alt="image-20240926204039528"></p>
+<p>Reference</p>
+<p><a target="_blank" rel="noopener" href="https://honor-ry.github.io/posts/de979122.html">https://honor-ry.github.io/posts/de979122.html</a></p>
+<p>libevent install：<a target="_blank" rel="noopener" href="https://blog.csdn.net/u012342808/article/details/121482259">https://blog.csdn.net/u012342808/article/details/121482259</a></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/leveldb/" class="print-no-link">#leveldb</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>leveldb, Rocksdb 性能实验 (YCSB)</div>
+      <div>https://yanghy233.github.io/2024/08/08/leveldb-test-ycsb/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年8月8日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2024/10/14/PASV-LSM/" title="Removing Double-Logging (FAST 22) 论文笔记">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Removing Double-Logging (FAST 22) 论文笔记</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/05/30/io-passthru/" title="I/O Passthru (FAST 24) 论文笔记">
+                        <span class="hidden-mobile">I/O Passthru (FAST 24) 论文笔记</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

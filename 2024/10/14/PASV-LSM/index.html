@@ -1,0 +1,1087 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="摘要类似 Mysql 的 RDB 存储引擎通常是以B+树为代表的 InnoDB，而基于 LSM-Tree 为代表的存储引擎以高性能和更高效的存储空间利用，逐渐替代前者。  但 LSM-Tree 存储引擎与上层 SQL层 的结合又会引来一个关键的双重日志问题：  上层 RDB 和下层存储引擎都实现了冗余的 redo-log 机制，导致了不必要的IO性能开销  本文提出了一种新的机制：PASV 被动数">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Removing Double-Logging (FAST 22) 论文笔记">
+<meta property="og:url" content="https://yanghy233.github.io/2024/10/14/PASV-LSM/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="摘要类似 Mysql 的 RDB 存储引擎通常是以B+树为代表的 InnoDB，而基于 LSM-Tree 为代表的存储引擎以高性能和更高效的存储空间利用，逐渐替代前者。  但 LSM-Tree 存储引擎与上层 SQL层 的结合又会引来一个关键的双重日志问题：  上层 RDB 和下层存储引擎都实现了冗余的 redo-log 机制，导致了不必要的IO性能开销  本文提出了一种新的机制：PASV 被动数">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=MDFkMTVlMWQxNWMyNTVhYjkwN2JmMzdmNGZlNDRlMGVfVG1WaGxKYXBUQW12OVVMUHBVR1pZbTZ2TGRidmxwWWtfVG9rZW46QnZISmJkYnl5b05tNDF4Vmk0eWNMeTFwbkFqXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=Njg5MTRiNzMxMGYyODhlYjdlMTI0NjM0OTRiYzM5OGJfZ0hXQVEzYVJKVldjSXBrZldjTUxpZkNvZ0kxNjFVT3pfVG9rZW46UlZXZ2I3V3M2b3lQWG94czVSRGNZNmtZbjVkXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NzJkNWUwNWRiMTk0YzI3ZDZmZTNkZjA0ODZhZjQ1M2JfQjZGZ3Y1Rjcya1BubnFLYUxQVHhDZzRCY1p5aFlrOHFfVG9rZW46TlM2QWI3d2tDb1lKQXV4blNLWWNhYTJublhjXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=YzE3ODdkYzY2ZjE3NmEwMjBlZWNkNjllNzE0ZDY2YWZfUE1YVGlLTWc4MTRlZUptZktyMjJydUtmWHhHYkR4V1ZfVG9rZW46SW1IeWJPNmFzb09lb2R4SmhkbmN5Zkt3bldkXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NDg3MGE5MTVlOTM0YWZkMDUyMzFhOWRmZmQ2NzE0MWFfTzlwRkw4Tm90YlVBR0FGQXZ2Y1BWdFRsMlFsd0RCbjlfVG9rZW46S3h3eGI3Z1dab2NRTUZ4NGhRNmNLVWNqbndoXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=YjJkZWJkODU5MzQzZmQ5OWYwMTk5ODg4MjUyMDJmZmZfZEVQdThWSW1aSkJ1V3dtbzZVZHo0V2l3akFicXNiUndfVG9rZW46VHNxbWI1WXV6b0RENlR4SWM3YmNVOTEybkliXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NmI0MDk2Y2FjMjRmMjk2YWVhNjk0ZTg3MmY0ODI0NzVfdGpzaWFNdEZiUjc3UVd4dURTRFlycnYyaHk3NTZWSnJfVG9rZW46UUprdWJ0SkZNb1laNXR4TmM4YWNKZGJTbkNjXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ZGZjNjU1YjNiODQzMTgxZjVmZjQwY2ZmM2Q1ZGE2NjlfakF4bGlGSEZzcFVJVFVsMTFyUWJFcmxlT216SHJIQjdfVG9rZW46STFTWWIyT1Nhb1FJSE14SjFza2N4RktybjRjXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NWY0NTNjMTFkYWJlZDZjMjczOGIxZTNiMWUzYTI5YmRfd0pzUmFhR1ZZR2JPdlRDRERHaW9maWhSY0Q1Y2VqTGtfVG9rZW46VFNvR2JUaTYyb0t0Umd4ekk4M2NpWTltbnFmXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+<meta property="article:published_time" content="2024-10-14T08:37:08.000Z">
+<meta property="article:modified_time" content="2025-06-08T08:41:19.401Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="LSM-Tree">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=MDFkMTVlMWQxNWMyNTVhYjkwN2JmMzdmNGZlNDRlMGVfVG1WaGxKYXBUQW12OVVMUHBVR1pZbTZ2TGRidmxwWWtfVG9rZW46QnZISmJkYnl5b05tNDF4Vmk0eWNMeTFwbkFqXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Removing Double-Logging (FAST 22) 论文笔记 - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Removing Double-Logging (FAST 22) 论文笔记"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-10-14 16:37" pubdate>
+          2024年10月14日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          3.7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          31 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Removing Double-Logging (FAST 22) 论文笔记</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a>摘要</h2><p>类似 Mysql 的 RDB 存储引擎通常是以B+树为代表的 InnoDB，而基于 LSM-Tree 为代表的存储引擎以高性能和更高效的存储空间利用，逐渐替代前者。</p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=MDFkMTVlMWQxNWMyNTVhYjkwN2JmMzdmNGZlNDRlMGVfVG1WaGxKYXBUQW12OVVMUHBVR1pZbTZ2TGRidmxwWWtfVG9rZW46QnZISmJkYnl5b05tNDF4Vmk0eWNMeTFwbkFqXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>但 LSM-Tree 存储引擎与上层 SQL层 的结合又会引来一个关键的双重日志问题：</p>
+<ul>
+<li>上层 RDB 和下层存储引擎都实现了冗余的 redo-log 机制，导致了不必要的IO性能开销</li>
+</ul>
+<p>本文提出了一种新的机制：PASV 被动数据持久化方案，能够有效解决双重日志问题；</p>
+<p>具体来说，PASV 通过完全移除存储引擎层的 WAL，同时引进了新的机制，包括：</p>
+<ul>
+<li>被动内存缓冲区刷新策略</li>
+<li>基于周期的数据持久化方案</li>
+<li>优化后的部分数据恢复过程</li>
+</ul>
+<p>来实现正常运行期间的可靠性和低成本进行数据持久化，并在系统故障时快速恢复；</p>
+<p>最后达到的性能指标：</p>
+<ul>
+<li>吞吐量提高 49.9%</li>
+<li>延迟降低 89.3%</li>
+<li>减少IO数量达到 42.9%</li>
+<li>系统恢复时间缩短 4.8%</li>
+</ul>
+<h2 id="1-介绍"><a href="#1-介绍" class="headerlink" title="1 介绍"></a>1 介绍</h2><p>LSM-Tree 存储层与上层 SQL 层是隔离的，存储引擎可以作为一个插件进行替换</p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=Njg5MTRiNzMxMGYyODhlYjdlMTI0NjM0OTRiYzM5OGJfZ0hXQVEzYVJKVldjSXBrZldjTUxpZkNvZ0kxNjFVT3pfVG9rZW46UlZXZ2I3V3M2b3lQWG94czVSRGNZNmtZbjVkXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>当请求到来时，</p>
+<ul>
+<li>SQL 层，需要负责 RDB 层面的逻辑，比如：SQL解析、查询优化、查询处理、事务执行，但为了系统崩溃后的恢复，通常需要一个 redo-log 机制，Mysql 中就是 Binlog</li>
+<li>存储引擎层，需要接收来自上层的请求，持久化数据到存储设备，类似的，通过 WAL 来保证在系统崩溃等异常情况下对数据的恢复</li>
+</ul>
+<h2 id="2-Double-Logging-Problem"><a href="#2-Double-Logging-Problem" class="headerlink" title="2 Double-Logging Problem"></a>2 Double-Logging Problem</h2><h3 id="2-1-三种日志的作用和-double-log-带来的影响"><a href="#2-1-三种日志的作用和-double-log-带来的影响" class="headerlink" title="2.1 三种日志的作用和 double-log 带来的影响"></a>2.1 三种日志的作用和 double-log 带来的影响</h3><p>Binlog 日志记录内容：</p>
+<blockquote>
+<p>完整的 SQL 语句或行级变更，事务的开始、提交或回滚信息、元数据时间戳等</p>
+<p>恢复过程：重放SQL操作、整个事务</p>
+</blockquote>
+<p>Rocksdb WAL 记录内容：</p>
+<blockquote>
+<p>完整的键值对操作，插入、更新、删除等，以及每个操作的序列号或时间戳</p>
+<p>恢复过程：重放键值对操作</p>
+</blockquote>
+<p>Innodb redo-log 记录内容：</p>
+<blockquote>
+<p>页面内容的具体更改，包含页面ID、偏移量、旧值、新值，不包含完整的行数据</p>
+<p>恢复过程：重放页面更改操作</p>
+</blockquote>
+<p>WAL 和 Binlog 在功能和记录的内容上重叠度更高，区别仅仅是 Binlog 保存的是原始 SQL，WAL 保存的是转换后的 KV，导致了以下影响：</p>
+<ul>
+<li>空间浪费</li>
+<li>IO次数增加，日志都是需要落盘的，重复的日志写入将导致性能的降低，如图2(b)</li>
+</ul>
+<p>Mysql 事务执行 与 Binlog 的两阶段提交：</p>
+<p>（1）事务执行（一个只有 update 的事务）</p>
+<ul>
+<li>从磁盘获取这条记录，SQL层将旧记录和新记录同时传递给存储引擎</li>
+<li>开启事务，首先生成一条 undo log，用于事务后面如果要回滚</li>
+<li>存储层收到事务转译过来的kv后，写入 redo-log（WAL）</li>
+<li>SQL层只需要确定事务都写入存储层的WAL后，就定义已执行完成，并持久化</li>
+<li>然后，上层把 SQL 日志写到 binlog cache（遵从每个事务串行写入）</li>
+<li>至此，事务执行完成</li>
+</ul>
+<p>（2）事务提交（两阶段）</p>
+<p>目的：防止半成功的状态，需要保证 binlog 和 WAL 都完成持久化</p>
+<p>由于上下层之间是互相独立的，</p>
+<p>如果没有两阶段提交，无法保证 binlog 持久化完成 和 WAL 持久化完成 能同时成功：</p>
+<ul>
+<li>情况1：WAL 持久化，binlog cache 未刷盘，此时宕机后恢复</li>
+</ul>
+<blockquote>
+<p>恢复阶段，存储层 WAL 日志重新执行，比如 k1 &#x3D; 2，但由于 binlog 里面没有记录这条记录，</p>
+<p>导致主从架构中，从库复制了 binlog 后，最后执行的状态，存储层出现键值不一致的情况，从库可能k1&#x3D;1</p>
+</blockquote>
+<ul>
+<li>情况2：binlog 持久化，WAL 未刷盘，此时宕机后恢复</li>
+</ul>
+<blockquote>
+<p>Binlog 默认存储层已持久化，主库恢复时，WAL 中没有 k1 &#x3D; 2，但 binlog 里面有个 update k1 &#x3D; 2</p>
+<p>由于 binlog 不参与恢复重建，只有 WAL 是 cache-safe 的</p>
+<p>主库 k1 &#x3D; 1，从库 k1 &#x3D; 2</p>
+</blockquote>
+<p>MyRocks 两阶段提交：</p>
+<ul>
+<li>Prepare 阶段</li>
+</ul>
+<p>kv对写入到 WAL，同时在 WAL 中将对应的事务状态设置为 prepare</p>
+<ul>
+<li>Commit 阶段</li>
+</ul>
+<p>将 binlog cache 里面的记录刷盘，成为真正的 binlog，</p>
+<p>接着 SQL 层调用存储层的事务提交接口，将 WAL 里面对应的事务状态置为 commit。</p>
+<p>至此，能够保证 binlog 和 WAL 的一致性。</p>
+<p>MyRocks Two-Phase Commit:</p>
+<ol>
+<li>Prepare Phase: <ol>
+<li>Key-value pairs are written to WAL, the corresponding transaction status in the WAL is set to “prepare”.</li>
+</ol>
+</li>
+<li>Commit Phase: <ol>
+<li>The records in the binlog cache are flushed to disk, becoming the actual binlog.</li>
+<li>Then, the SQL layer calls the storage layer’s transaction commit interface to set the corresponding transaction status in the WAL to “commit”.</li>
+</ol>
+</li>
+</ol>
+<p>The same records will be written twice in binlog and wal.</p>
+<p>（2）再由 Binlog 回放，在重新执行 SQL 语句的过程中，SQL层先解析成 kv 对并发送给存储层，在存储层接收时，RocksDB 优先将新的上层请求放入 WAL，再将kv对写入Rocksdb（相同kv写Rocksdb第二次）</p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NzJkNWUwNWRiMTk0YzI3ZDZmZTNkZjA0ODZhZjQ1M2JfQjZGZ3Y1Rjcya1BubnFLYUxQVHhDZzRCY1p5aFlrOHFfVG9rZW46TlM2QWI3d2tDb1lKQXV4blNLWWNhYTJublhjXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<h4 id="如何解决-double-log-带来的性能下降"><a href="#如何解决-double-log-带来的性能下降" class="headerlink" title="如何解决 double-log 带来的性能下降"></a>如何解决 double-log 带来的性能下降</h4><p>本文提出的解决方案：移除存储层的 WAL，仅保留 SQL 层的 binlog</p>
+<p>The main idea is to remove WAL.</p>
+<p>However, it will cause three critical challenges.</p>
+<ul>
+<li>Unwarranted data persistence.<ul>
+<li>After removing WAL, RocksDB may only write key-value pairs to the in-memory memtable.</li>
+<li>If the storage engine crashes, the binlog will consider the txn has already persisted and not need replay.</li>
+</ul>
+</li>
+<li>Partial persistence.<ul>
+<li>A SQL transaction may be parsed into multiple KV pair writes.</li>
+<li>Multiple key-value pairs may be distributed across different column families in Rocksdb.</li>
+<li>Some KV items have been flushed to disk while others have not.</li>
+</ul>
+</li>
+<li>Lost track of LSN.<ul>
+<li>Consistent snapshots are ineffective.</li>
+</ul>
+</li>
+</ul>
+<h4 id="但简单的移除-WAL-会带来一系列问题：三个-Critical-Challenges"><a href="#但简单的移除-WAL-会带来一系列问题：三个-Critical-Challenges" class="headerlink" title="但简单的移除 WAL 会带来一系列问题：三个 Critical Challenges"></a>但简单的移除 WAL 会带来一系列问题：三个 Critical Challenges</h4><p>（1）Unwarranted data persistence. 无法保证数据的持久性</p>
+<blockquote>
+<p>在原先的系统里，SQL层一旦收到存储层的 WAL 写入响应，就默认这个键值对已经被持久化了</p>
+<p>即使存储引擎突然崩溃，Rocksdb 立刻重放 WAL，也能达到一致性</p>
+<p>但移除 WAL 后，Rocksdb 可能仅仅将键值对写入内存中的 memtable，并立即返回响应</p>
+<p>如果存储引擎崩溃，binlog 会认为已经被持久化，不需要重放，导致这个 kv 对消失</p>
+</blockquote>
+<p>（2）Partial persistence. 造成部分持久化</p>
+<blockquote>
+<p>部分持久化现象针对的是事务，一个 SQL 事务可能被解析成多个 kv 对的写入，</p>
+<p>多个键值对可能分布在不同的 memtable 中，可能存在同一事务有的 kv项已刷盘，有的 kv项未刷盘</p>
+<p>从而导致系统崩溃时造成事务的部分持久化</p>
+</blockquote>
+<p>（3）Lost track of LSN. 丢失跟踪的LSN信息</p>
+<blockquote>
+<p>LSN（log sequence number)，Rocksdb 每当有一个键值对的插入或更新都会分配一个新的 LSN</p>
+<p>这里主要会影响 Rocksdb 的 MVCC 并发控制，在有 WAL 的情况下，重放的每个kv都会保留之前的 LSN</p>
+<p>但如果去掉 WAL，重放 binlog 会为原先的kv分配新的 LSN，这将导致：</p>
+<ul>
+<li>原有的一致性快照失效，因为它们基于旧的 LSN</li>
+<li>由于并发执行，原先的操作执行顺序和恢复后的执行顺序可能不同，将无法保证读一致性</li>
+<li>有WAL: LSN帮助确保事务的原子性，通过WAL可以确保事务要么完全应用，要么完全回滚。</li>
+<li>删除WAL后: 无法保证事务的完整性，特别是对于跨多个MemTable的事务</li>
+<li>对于已刷盘的数据，无法通过 LSN 知道磁盘上数据的版本，一致性快照失效</li>
+</ul>
+</blockquote>
+<h2 id="3-系统设计"><a href="#3-系统设计" class="headerlink" title="3 系统设计"></a>3 系统设计</h2><p>PASV-mgr Layer.</p>
+<ul>
+<li>Flush flag: Used to pass transaction information related to data recovery between two layers, with each CF maintaining a key for the flag.</li>
+<li>EBP: Determine the nearest global safe point to the current time.</li>
+<li>Partial Recovery: Determine the minimum number of KVs to be recovered for each CF.</li>
+</ul>
+<p>去除 Rocksdb 的 WAL 层后，在 SQL 层与存储层之间新加了 PASV-mgr 层，里面包含三个模块：</p>
+<ul>
+<li>EBP：确定离当前最近的全局安全点，能够完整恢复丢失数据</li>
+<li>Partial Recovery：确定每个CF要恢复的最少KV数</li>
+<li>Flush flag：用于在两层之间传递与数据恢复相关的事务信息，每个CF维护一个flag的key<ul>
+<li>flag的value：&lt;CF, TSN, $$LSN_{first$$, $$LSN_{last$$&gt;</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=YzE3ODdkYzY2ZjE3NmEwMjBlZWNkNjllNzE0ZDY2YWZfUE1YVGlLTWc4MTRlZUptZktyMjJydUtmWHhHYkR4V1ZfVG9rZW46SW1IeWJPNmFzb09lb2R4SmhkbmN5Zkt3bldkXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>ACT (Active Flush) 是一种主动同步数据持久化的方法，用于解决移除 Write-Ahead Log (WAL) 后的数据一致性问题。以下是 ACT 的主要算法思路：</p>
+<ol>
+<li>基本原理： ACT 通过在 RDB 层定期强制刷新存储引擎层的所有内存缓冲区（MemTables），来创建一个同步点。这确保了在这个点之前的所有事务都被安全地持久化到存储中。</li>
+<li>实现机制： a. 事务计数： <ol>
+<li>系统维护一个事务计数器。</li>
+<li>每当一个事务提交时，计数器增加。</li>
+</ol>
+</li>
+<li>b. 刷新阈值： <ol>
+<li>预定义一个刷新阈值（如每 100、200、500 等事务）。</li>
+</ol>
+</li>
+<li>c. 强制刷新： <ol>
+<li>当事务计数达到阈值时，触发 flushAll() 操作。</li>
+<li>flushAll() 会同时刷新所有 LSM 树的内存缓冲区。</li>
+</ol>
+</li>
+<li>d. 同步操作： <ol>
+<li>刷新过程是同步的，需要获取锁。</li>
+<li>在刷新期间，所有提交线程都会被阻塞。</li>
+</ol>
+</li>
+<li>优点： <ol>
+<li>简单直接：实现相对简单，容易理解。</li>
+<li>可控的持久化点：可以通过调整阈值来控制持久化频率。</li>
+<li>确定性：每次刷新后，可以明确知道哪些事务已经被持久化。</li>
+</ol>
+</li>
+<li>缺点： <ol>
+<li>性能开销：频繁的强制刷新会导致大量小型同步 I&#x2F;O，影响性能。</li>
+<li>并行性降低：同步刷新会阻塞其他操作，降低系统并行性。</li>
+<li>内存缓冲效率降低：可能导致未满的内存缓冲被过早刷新。</li>
+<li>模块化受损：RDB 层直接控制存储引擎层的操作，破坏了模块化设计。</li>
+</ol>
+</li>
+</ol>
+<p>ACT creates a synchronization point by periodically forcing a flush of all memory buffers (MemTables) in the storage engine layer at the RDB layer.</p>
+<p>Advantages:</p>
+<ul>
+<li>Simplicity.</li>
+<li>Determinism: After each flush, it’s clear which transactions have persisted.</li>
+</ul>
+<p>Disadvantages:</p>
+<ul>
+<li>Performance overhead: Frequent forced flushes lead to many small synchronous I&#x2F;Os.</li>
+<li>The flush process is synchronous and requires acquiring a lock in SQL layer.</li>
+<li>All the commit threads will be blocked during the ACT.</li>
+<li>More frequently happening compaction operations in the underlying LSM-trees.</li>
+<li>Compromised modularity.</li>
+</ul>
+<p>Implementation principles:</p>
+<ul>
+<li>A mechanism is needed to track the progress of data persistence, while also tracking the status of transactions at the storage layer.<ul>
+<li>PASV Flush Flag.</li>
+</ul>
+</li>
+<li>The key-value pairs parsed from a single transaction may be distributed across multiple different Column Families (CFs). A mechanism is needed to ensure a global data persistence point.<ul>
+<li>Epoch-based Persistence.</li>
+</ul>
+</li>
+<li>For recovery and reconstruction, a mechanism needs to be designed to reallocate Log Sequence Numbers.<ul>
+<li>Partial Recovery Module.</li>
+</ul>
+</li>
+</ul>
+<h4 id="3-1-Flush-flag-模块"><a href="#3-1-Flush-flag-模块" class="headerlink" title="3.1 Flush flag 模块"></a>3.1 Flush flag 模块</h4><p>作用：</p>
+<ul>
+<li>标志数据持久化的进度</li>
+<li>在不需要 WAL 的情况下也能跟踪事务的状态</li>
+</ul>
+<h4 id="Flush-flag-设计可行性的前提"><a href="#Flush-flag-设计可行性的前提" class="headerlink" title="Flush flag 设计可行性的前提"></a>Flush flag 设计可行性的前提</h4><ul>
+<li>Binlog 串行记录着事务提交的顺序</li>
+<li>事务解析成键值对的过程是串行的，即当一个事务在被解析和转换成kv对时，另一个事务必须等待</li>
+<li>一个事务解析出的所有键值对按照顺序串行加入 LSM-Tree 的 memtable</li>
+</ul>
+<h4 id="由-Flush-flag-定义两个恢复点"><a href="#由-Flush-flag-定义两个恢复点" class="headerlink" title="由 Flush flag 定义两个恢复点"></a>由 Flush flag 定义两个恢复点</h4><p>$$Flag &#x3D; ，</p>
+<p>TSN 代表当前CF memtable 收到的最后一个已传递所有kv到这个列族的事务, 设为 $$T_{p$$</p>
+<p>$$LSN_{first$$ 代表该事务在这个 memtable 的第一个键值对的 log sequence number</p>
+<p>$$LSN_{last$$代表最新那个键值对的 log sequence number</p>
+<p>Flush Flag value &#x3D; $$$$</p>
+<ul>
+<li>Flush flag is a special KV. The key is a random 128-bit magic number distinguished from user data.</li>
+<li>TSN is the Transaction Sequence Number of the last transaction whose KV items are inserted in the memory buffer of the column family.</li>
+<li>$$LSN_{first$$ represents the first KV of the transaction.</li>
+<li>$$LSN_{last}$$ represents the last persisted KV of the transaction.</li>
+</ul>
+<p>Prerequisites for the feasibility of flush flag design: serial property of transaction processing.</p>
+<ul>
+<li>During the transaction commit process, all transaction records are persisted to the binlog in serial.</li>
+<li>The SQL transactions are parsed in the RDB layer and translated into KV batches in the storage engine layer in serial.</li>
+<li>The KV items that are translated from a transaction are inserted into the LSM-trees’ memory buffers in serial.</li>
+</ul>
+<p>Hence we can ensure that all KV items logically prior to the last KV item of the last transaction in a column family would never be persisted to storage later than it.</p>
+<p>一个 flag 可以定义不同事务的数据安全点和数据持久化点</p>
+<ul>
+<li>Data Save Point: 事务 $$T_{p-1}$$的数据安全点，表示的是事务 P-1 及之前的所有事务在 CF 上都已经完成持久化</li>
+<li>Data Persistent Point: 事务 $$T_{p}$$ 的数据持久化点，由于事务 P 还可能有其他键值对在来的路上（上层向下层传递中），这里表示的是事务 P 持久化到了事务里面的一个键值对及之前这个事务的所有键值对</li>
+</ul>
+<p>Based on this serial property, we can conclude that:</p>
+<ul>
+<li>If the retrieved flush flag contains transaction $$T_p$$, the KV items of transaction $$T_{p-1}$$ and transactions prior to it in $$CF_i$$ must have already been persisted.</li>
+<li>Local Data Save Point for $$T_{p-1}$$.<ul>
+<li>It indicates that$$T_{p-1}$$ and all transactions before it have been fully persisted on the CF.</li>
+</ul>
+</li>
+<li>Local Data Persistent Point for $$T_{p}$$.<ul>
+<li>Due to some kv pairs of $$T_{p}$$ not yet being sent to the storage layer, this indicates the last persisted key-value pair in $$T_{p}$$.</li>
+</ul>
+</li>
+</ul>
+<h4 id="理解-Data-Save-Point"><a href="#理解-Data-Save-Point" class="headerlink" title="理解 Data Save Point"></a>理解 Data Save Point</h4><p>假设 P-1 事务没有完成持久化，后续还有 P-1 事务的键值对在来的路上，即下面场景：</p>
+<p>memtable：kv1(t1), kv2(t2), kv3(t3), kv4(t2)</p>
+<p>Sending to the storage layer: kv5(t1), kv6(t2)</p>
+<p>由于 binlog 串行记录事务的提交顺序，即 T3 -&gt; T1 -&gt; T2</p>
+<p>flag &#x3D; &lt;CF1, t2, kv2_lsn, kv4_lsn&gt;， P &#x3D; t2，P-1 &#x3D; t1</p>
+<p>这里违反了 serial property 的条件二和三：t1 的所有键值对解析和传递操作都必须先于 t2 任何操作之前进行处理</p>
+<p>若要满足 serial property 的三个条件，顺序应为串行的：</p>
+<p>kv1(t1), kv5(t1), kv3(t3), kv2(t2), kv4(t2), kv6(t2)</p>
+<h4 id="3-2-Epoch-based-Persistence-模块"><a href="#3-2-Epoch-based-Persistence-模块" class="headerlink" title="3.2 Epoch-based Persistence 模块"></a>3.2 Epoch-based Persistence 模块</h4><p>作用：</p>
+<ul>
+<li>协调多个 CF 之间的数据持久化进度；</li>
+<li>确定数据恢复的全局安全点；</li>
+</ul>
+<p>由于每个 CF 进行 flush 的时间不同，一个事务的键值对操作可能分散在多个 CF 里面，</p>
+<p>每个 CF 的持久化进度不同，因此，需要确定在所有 CF 里面，最新的已完全持久化到存储的事务。</p>
+<p>Local data persistent point : 事务 $$T_{p}$$</p>
+<p>Global data persistent point : 根据 binlog 记录的事务 commit 的顺序，比如 T3 -&gt; T1 -&gt; T2；</p>
+<p>取 min{ local data persistent point }，大小顺序如上，扫描 binlog 构建。</p>
+<h4 id="3-3-Partial-Recovery-模块"><a href="#3-3-Partial-Recovery-模块" class="headerlink" title="3.3 Partial Recovery 模块"></a>3.3 Partial Recovery 模块</h4><p>作用：</p>
+<ul>
+<li>崩溃后数据恢复的具体执行过程；</li>
+<li>重建丢失的 LSN 信息；</li>
+<li>优化：只重放每个 CF 尚未持久化的事务，最小化需要重放的数据量；</li>
+</ul>
+<p>一个简单的思路是重放全局点及之后的所有事务的键值对，但会造成冗余放大；</p>
+<p>如右图，CF1~3的数据持续点为：t, n, s，全局点为 n，</p>
+<p>如果 CF1 也重放事务 n 的键值对，会造成已持久化重复插入。</p>
+<p>作者的思路也很简单，根据 global persistent point 和 binlog 确定需要重放的事务范围：</p>
+<ul>
+<li>先让 binlog 根据 global persistent point 开始重放事务并转换成键值对；</li>
+<li>每个 CF 根据 local persistent point（flag）和 binlog 事务顺序来判断某个键值对是否需要被执行；</li>
+<li>如右图，恢复阶段 CF1 将 事务t 之前的所有键值对抛弃。</li>
+</ul>
+<h4 id="3-4-恢复阶段重新构建每个键值对操作的-LSN"><a href="#3-4-恢复阶段重新构建每个键值对操作的-LSN" class="headerlink" title="3.4 恢复阶段重新构建每个键值对操作的 LSN"></a>3.4 恢复阶段重新构建每个键值对操作的 LSN</h4><p>移除 WAL 后，每个键值对的 LSN 也会丢失</p>
+<p>在 MVCC 中，读操作需要在某个时间点的一致性视图就需要根据 LSN 读取相应时间点的数据</p>
+<p>重放阶段，binlog 事务一个个串行执行</p>
+<ul>
+<li>A 事务解析成kv对发到各个 CF，如果该 CF flag 的 TSN &gt; 当前事务的 TSN，丢弃（不需要重放）</li>
+<li>由 serial property 原则，每个 CF 只会接收大于等于 TSN 事务的键值对，每个键值对新LSN &#x3D; flag.last_lsn++</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NDg3MGE5MTVlOTM0YWZkMDUyMzFhOWRmZmQ2NzE0MWFfTzlwRkw4Tm90YlVBR0FGQXZ2Y1BWdFRsMlFsd0RCbjlfVG9rZW46S3h3eGI3Z1dab2NRTUZ4NGhRNmNLVWNqbndoXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<h2 id="4-实验"><a href="#4-实验" class="headerlink" title="4 实验"></a>4 实验</h2><p>Workload.</p>
+<ul>
+<li><p>FaceBook UDB，模拟社交网络 benchmark，模拟用户图谱数据，包括节点（用户）和边（关系）</p>
+<ul>
+<li>吞吐量：提升 49.9%</li>
+<li>延迟降低：30%</li>
+<li>IO次数：存储引擎层降低 42%</li>
+</ul>
+</li>
+<li><p>TPC-C</p>
+<ul>
+<li>总执行时间：减少 26%</li>
+<li>吞吐：提升 35%</li>
+<li>IO次数：存储引擎层降低 23%</li>
+</ul>
+</li>
+<li><p>Facebook UDB, simulating social network benchmarks, models user graph data including nodes (users) and edges (relationships).</p>
+<ul>
+<li>Throughput: increased by 49.9%.</li>
+<li>Latency: reduced by 30%.</li>
+<li>I&#x2F;O count: reduced by 42% at the storage engine layer.</li>
+</ul>
+</li>
+<li><p>TPC-C </p>
+<ul>
+<li>Total execution time: reduced by 26%.</li>
+<li>Throughput: increased by 35%.</li>
+<li>I&#x2F;O count: reduced by 23% at the storage engine layer.</li>
+</ul>
+</li>
+</ul>
+<p>图5：</p>
+<ul>
+<li>PASV 和 Myrocks baseline 在性能指标上的对比，延迟、吞吐、IO次数</li>
+<li>PASV and Myrocks baseline comparison in performance metrics.</li>
+<li>Including total execution time, avg latency, throughput, and I&#x2F;O count.</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=YjJkZWJkODU5MzQzZmQ5OWYwMTk5ODg4MjUyMDJmZmZfZEVQdThWSW1aSkJ1V3dtbzZVZHo0V2l3akFicXNiUndfVG9rZW46VHNxbWI1WXV6b0RENlR4SWM3YmNVOTEybkliXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>图6：</p>
+<ul>
+<li>PASV 和主动刷新方法 active flush method ACT 的性能对比</li>
+<li>主动刷新方法 ACT：每隔一段时间将所有 CF 的 memtable 强制 flush 到磁盘<ul>
+<li>ACT 的缺点：一般来说，Rocksdb 在memtable满了后转换成 imm，再 flush</li>
+<li>但 ACT 每隔一段时间强制刷新，导致同一时间点大量小的memtable都要被flush，造成性能的下降</li>
+</ul>
+</li>
+<li>对比的指标：吞吐，延迟，恢复时间</li>
+</ul>
+<p>Performance comparison between PASV and the Active flush method(ACT)</p>
+<ul>
+<li>Active flush method: Forcibly flushes the memtables of all CFs to disk at regular intervals. <ul>
+<li>Drawback of ACT: ACT forces flushing at regular intervals, causing many small memtables to be flushed at the same time, leading to performance degradation.</li>
+</ul>
+</li>
+<li>Comparison metrics: throughput, latency, recovery time.</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NmI0MDk2Y2FjMjRmMjk2YWVhNjk0ZTg3MmY0ODI0NzVfdGpzaWFNdEZiUjc3UVd4dURTRFlycnYyaHk3NTZWSnJfVG9rZW46UUprdWJ0SkZNb1laNXR4TmM4YWNKZGJTbkNjXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>图7：</p>
+<ul>
+<li>Native：各种指标的上界，直接删除 WAL，不考虑系统崩溃的场景</li>
+<li>PASV 在性能上能够达到极限性能上界</li>
+<li>同时，恢复时间 Native 是必须重放所有binlog，与 PASV 相差几百倍</li>
+<li>Native: The upper bound for various metrics, directly removing WAL without considering crash scenarios.</li>
+<li>PASV can achieve extreme performance upper bound in terms of performance.(SOTA)</li>
+<li>For recovery time, Native must replay all binlogs, which differs from PASV by hundreds of times.</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ZGZjNjU1YjNiODQzMTgxZjVmZjQwY2ZmM2Q1ZGE2NjlfakF4bGlGSEZzcFVJVFVsMTFyUWJFcmxlT216SHJIQjdfVG9rZW46STFTWWIyT1Nhb1FJSE14SjFza2N4RktybjRjXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>Table 3：</p>
+<ul>
+<li>比较 PASV 和 myrocks 在恢复时间上的性能</li>
+<li>在性能得到大量提升的情况下，恢复时间能够跟 myrocks 相持平</li>
+</ul>
+<p>Compare the recovery time performance between PASV and MyRocks.</p>
+<ul>
+<li>While achieving significant performance improvements, the recovery time is able to remain with MyRocks.</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NWY0NTNjMTFkYWJlZDZjMjczOGIxZTNiMWUzYTI5YmRfd0pzUmFhR1ZZR2JPdlRDRERHaW9maWhSY0Q1Y2VqTGtfVG9rZW46VFNvR2JUaTYyb0t0Umd4ekk4M2NpWTltbnFmXzE3NDkzNzE3MDU6MTc0OTM3NTMwNV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<h2 id="5-Conclusion"><a href="#5-Conclusion" class="headerlink" title="5 Conclusion"></a>5 Conclusion</h2><p>在移除 WAL 后，能够用 PASV 机制实现高性能和高可用</p>
+<p>在保证恢复速度的同时，实现性能提升</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/LSM-Tree/" class="print-no-link">#LSM-Tree</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Removing Double-Logging (FAST 22) 论文笔记</div>
+      <div>https://yanghy233.github.io/2024/10/14/PASV-LSM/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年10月14日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2024/10/22/lsm-tree-schedule/" title="LSM-Tree 缓解写放大 论文笔记">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">LSM-Tree 缓解写放大 论文笔记</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/08/08/leveldb-test-ycsb/" title="leveldb, Rocksdb 性能实验 (YCSB)">
+                        <span class="hidden-mobile">leveldb, Rocksdb 性能实验 (YCSB)</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

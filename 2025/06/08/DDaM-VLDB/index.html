@@ -1,0 +1,897 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="背景  应用程序经常需要更改 schema 来适应新的需求，但在线模式变更（DDL）与事务型（DML）的并发执行仍具有挑战，以往的工作实现在线DDL的方式是通过打补丁实现（比如 MySQL），只能支持部分在线DDL与DML操作并发执行，一些重要 schema 变更需要停机时间（指这段时间内，事务都被 abort，如果数据量特别大，停机时间就会很长，影响前台事务的执行）  Modern datab">
+<meta property="og:type" content="article">
+<meta property="og:title" content="DDaM Online DDL 事务优化 (VLDB 23)">
+<meta property="og:url" content="https://yanghy233.github.io/2025/06/08/DDaM-VLDB/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="背景  应用程序经常需要更改 schema 来适应新的需求，但在线模式变更（DDL）与事务型（DML）的并发执行仍具有挑战，以往的工作实现在线DDL的方式是通过打补丁实现（比如 MySQL），只能支持部分在线DDL与DML操作并发执行，一些重要 schema 变更需要停机时间（指这段时间内，事务都被 abort，如果数据量特别大，停机时间就会很长，影响前台事务的执行）  Modern datab">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ODY3ZTNlODViYzkwMTQ5MzhjOTIyNDMxM2RlOTk0YzZfeVdWU3VEOXE5QW9SWGo3a2h0RE4ydnVWMmxMNFhzc2lfVG9rZW46SDhYTmJPd3NPb3I1U1l4MmxQVGNYdHRubk5oXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NWViZTlkMWMyNDI2MGEzZTI1NTNjOTY1MjViNzFlMzZfZ3RLUzM1azNHTUI0TWdvSlBzNW9EOGlkNzVGM3pjc0pfVG9rZW46VkZLSWIweWs1b1VTVk14clBudGNlZmFZbnJoXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NjhjNGYwNTA2NjhlOTNhZmUxNmYxMTJkMjlmYmI3NGVfcno2d0RZMXdKWUFuWE1JOWVtN3dtd05LbVBGeUJ3eGpfVG9rZW46RXVhOGI4U2dMb1dCR3B4UFJVNmNaNmYzbmdlXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NGY2NmI2OGMwYWFhYmQ5ZmY0MTk0M2FjNDExZTI2YThfTDZuUTU0alY4TTV1ekRMaFkwN2RzTFUxN3Bka1p3ZExfVG9rZW46Q3BXaWJTNVpCb2RUeHh4SmViaGNHa3BvbmZiXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NmI3N2U2NTUyMTAyNTg2MDVkNmQ4NjI0ZDM2MTFlNTJfWGViN1JuVXRhVVI4elVDb3NKejFwZlQ4S25vSTY4dVFfVG9rZW46TFJ4aWI4TTlZb0cwcFJ4VllybWN6OXI4blliXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=YzZmODgyMWM2MDcwN2Q5MDY5OGJiZjBkYzE1MGZhYjJfRjdEZ2h0SEo4Z1l5QXJ5bFFRRU5WTjR2QUpHaGxtUVpfVG9rZW46VklqeGI4ODVwb1FMRlF4eG9jYWN4eHZwblFnXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ZThmOTRkMTY1NGI2OWY0NzIzOTFkNjE2NGI3MDI5YzZfZ3dSMjlDTFoyMDdpZ0k1UWhxZjRRSmRLb2xmSjF2R09fVG9rZW46TUJDU2JmRFM3bzFLMUd4ckF2Y2NScjV5bmllXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=M2U1OWFmNmU4OGQ4MjMwMDliODFjYmY3MGMyMzAxNGZfMTlrdVVMSFRXbGxUM3hLV0Y0Zld3OTVZbE9HVENqRlBfVG9rZW46UTN3UGJsZmNYb1I5WE54TE5iYWNTM1lFbmtoXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=Y2MyOTkxZDZlZDAzYzY4YzQwZDAwZDY3YWM5MDRmMGNfSE9FVnM0MkpCZ0pia1R6VHZNd240MnY2QTV6dWE2ekFfVG9rZW46TW9zM2JvYmtkb252VW14a3I1OGNwc1dvbjVjXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+<meta property="article:published_time" content="2025-06-08T08:42:40.000Z">
+<meta property="article:modified_time" content="2025-06-08T08:43:20.703Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="transaction">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ODY3ZTNlODViYzkwMTQ5MzhjOTIyNDMxM2RlOTk0YzZfeVdWU3VEOXE5QW9SWGo3a2h0RE4ydnVWMmxMNFhzc2lfVG9rZW46SDhYTmJPd3NPb3I1U1l4MmxQVGNYdHRubk5oXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>DDaM Online DDL 事务优化 (VLDB 23) - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="DDaM Online DDL 事务优化 (VLDB 23)"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2025-06-08 16:42" pubdate>
+          2025年6月8日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          2.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          20 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">DDaM Online DDL 事务优化 (VLDB 23)</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <ol>
+<li><h3 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h3></li>
+</ol>
+<p>应用程序经常需要更改 schema 来适应新的需求，但在线模式变更（DDL）与事务型（DML）的并发执行仍具有挑战，以往的工作实现在线DDL的方式是通过打补丁实现（比如 MySQL），只能支持部分在线DDL与DML操作并发执行，一些重要 schema 变更需要停机时间（指这段时间内，事务都被 abort，如果数据量特别大，停机时间就会很长，影响前台事务的执行）</p>
+<blockquote>
+<p>Modern database applications often change their schemas to keep  up with the changing requirements. However, support for online  and transactional schema evolution remains challenging in existing database systems.</p>
+<p>Applications therefore often have to carefully schedule downtimes for schema changes, sacrificing availability.</p>
+<p>With continuous deployment and integration becoming a norm, however,  schema evolution can happen quite frequently (e.g., several times  a week), requiring reduced or no service downtime and robust error handling with little DBA intervention [10, 42, 43]. </p>
+<p>This in turn  requires DDL statements be executed in a way that is</p>
+<p>(1) online  without blocking concurrent data accesses and </p>
+<p>(2) transactional  such that in case a DDL statement fails (e.g., attempting to convert  VARCHAR that contain “illegal” characters to INT) the operation can  be safely rolled back to leave the database in a consistent state.</p>
+</blockquote>
+<ol>
+<li><h3 id="挑战"><a href="#挑战" class="headerlink" title="挑战"></a>挑战</h3></li>
+</ol>
+<ul>
+<li>现有解决方案（MySQL）不支持事务型DDL，且并非所有DDL都是可以在线执行的，并发 DML 通常被禁止；</li>
+<li>并发效率低：DDL 操作普遍需要大量数据修改与迁移，与 DML 并发导致 WW 冲突，触发事务回滚；</li>
+</ul>
+<ol>
+<li><p>No transactional DDL support – Schema changes cannot be rolled back atomically. <em>(更明确，补充关键影响)</em></p>
+</li>
+<li><p>Limited online DDL capabilities – Many operations still block concurrent DML. <em>(更简洁，”并非所有” → “Limited”)</em></p>
+</li>
+<li><p>High overhead during DDL execution – Large-scale data migration often causes write-write (WW) conflicts, leading to transaction aborts and degraded performance. </p>
+</li>
+<li><h3 id="贡献"><a href="#贡献" class="headerlink" title="贡献"></a>贡献</h3></li>
+</ol>
+<p>核心思想：数据定义即修改（DDaM）</p>
+<p>通过扩展 SI 协议，DDL 在线修改表模式可以建模成对整张表的一次常规 DML 事务，从而实现与 DML 事务无阻塞的并发执行。</p>
+<ol>
+<li><h3 id="MVCC-Background"><a href="#MVCC-Background" class="headerlink" title="MVCC Background"></a>MVCC Background</h3></li>
+</ol>
+<p><strong>（1）快照隔离级别（乐观锁机制）</strong></p>
+<ul>
+<li>读取&#x2F;修改：只能看到 begin 时间戳之前的最新版本；</li>
+<li>和 RR 能够看到的范围一样；</li>
+<li>SI 提交时：检查数据项上是否存在大于自己事务 Begin 时间戳成功提交的修改，有则自己 Rollback；</li>
+</ul>
+<p><strong>（2）RC 隔离级别（悲观锁机制）</strong></p>
+<ul>
+<li>读取 &#x2F; 修改：始终能够读取最新已提交事务的数据版本，同时锁定数据项，其他事务不允许更改；</li>
+</ul>
+<p><strong>（3）First-Updater&#x2F;Committer Win 协议 （FUW）</strong></p>
+<ul>
+<li>同一时间点，一个数据项上只允许存在一个未提交事务的修改版本；（悲观）</li>
+<li>并发修改下，只允许第一个提交的事务完成更改，另一个回滚；（乐观）</li>
+</ul>
+<p>无论是悲观锁机制还是乐观锁机制，都遵循 FUW 协议：</p>
+<ul>
+<li>悲观下，未提交事务 A 更新了数据项 x，未提交事务 B 也想更新数据项 x，但 x 上存在锁，只允许事务 A 更新成功，事务 B 要么被阻塞等待，要么超时回滚；</li>
+<li>乐观下，两个未提交事务都能修改数据项 x，但是在提交的时候，先提交的事务 A 能够成功，后提交的事务 B 在检查的时候发现，数据项上最新的成功提交时间戳在自己 Begin 时间戳之后，B 事务只能回滚；</li>
+</ul>
+<p><strong>（4）MySQL 间隙锁原理</strong></p>
+<ul>
+<li>是 RR 下的一种锁机制，并不锁定行数据，而是锁定两个索引值之间的范围；</li>
+<li>目的是防止其他事务在这个范围内插入新数据，解决幻读问题；</li>
+</ul>
+<ol>
+<li><h3 id="具体实现"><a href="#具体实现" class="headerlink" title="具体实现"></a>具体实现</h3></li>
+</ol>
+<h4 id="5-1-对-DDL-操作进行分类"><a href="#5-1-对-DDL-操作进行分类" class="headerlink" title="5.1 对 DDL 操作进行分类"></a>5.1 对 DDL 操作进行分类</h4><p>Copy：操作是否对实际的数据进行复制或修改；</p>
+<p>Verify：是否需要进行验证，比如这个DDL操作是否只对表数据进行只读操作；</p>
+<p>（1）Copy + Verify</p>
+<ul>
+<li>Modify:  varchar 到 int，需要先扫描全部进行一遍验证，验证没问题后才拷贝数据进行格式转换。</li>
+<li>添加<strong>唯一索引</strong>需要验证，有需要拷贝；</li>
+</ul>
+<p>（2）仅 Verify</p>
+<ul>
+<li>给列加 NOT NULL 约束，只需扫描全部检查，然后加个元数据约束；</li>
+</ul>
+<p>（3）仅 Copy</p>
+<ul>
+<li>添加<strong>普通索引</strong>，根据某个select创建新表，直接复制相应数据项；</li>
+</ul>
+<p>（4）都不需要</p>
+<ul>
+<li>建表和删表仅需要通过更改系统目录就能实现；</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ODY3ZTNlODViYzkwMTQ5MzhjOTIyNDMxM2RlOTk0YzZfeVdWU3VEOXE5QW9SWGo3a2h0RE4ydnVWMmxMNFhzc2lfVG9rZW46SDhYTmJPd3NPb3I1U1l4MmxQVGNYdHRubk5oXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<h4 id="5-2-DDaM-Overview"><a href="#5-2-DDaM-Overview" class="headerlink" title="5.2 DDaM Overview"></a>5.2 DDaM Overview</h4><p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NWViZTlkMWMyNDI2MGEzZTI1NTNjOTY1MjViNzFlMzZfZ3RLUzM1azNHTUI0TWdvSlBzNW9EOGlkNzVGM3pjc0pfVG9rZW46VkZLSWIweWs1b1VTVk14clBudGNlZmFZbnJoXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>将原本数据项上的 MVCC 版本链扩展至表 Schema，每张表也维护一个版本链；</p>
+<p>Tesseract里面对一个数据项的访问模式：</p>
+<p>（1）Catalog表维护的是各个表的 schema 元信息，也就说左上角的表RID 实际上是 tableId，每个表项由一个链表维护，每个链表项含一个时间戳和整个表结构信息</p>
+<p>（2）访问数据项时，首先根据 tableId 找到离事务自己最近的schema（图中第一行），比如T1找到的就是S2</p>
+<p>（3）再根据数据项 RID 去 columns 表根据 MVCC 数据项版本链寻找可见版本的数据</p>
+<p>（4）链表是按照新到旧排序的</p>
+<h4 id="5-3-基于通用快照隔离协议修改的-Basic-DDaM"><a href="#5-3-基于通用快照隔离协议修改的-Basic-DDaM" class="headerlink" title="5.3 基于通用快照隔离协议修改的 Basic DDaM"></a>5.3 基于通用快照隔离协议修改的 Basic DDaM</h4><p>DDaM 为了能将 DDL 放入事务中执行，跟随 DML 操作通过 Commit 完成提交，修改了 SI 协议，以支持 DDL。</p>
+<p>算法 1（3-20行是通用 SI 协议, 21-32行是用 SI 协议修改表 Schema）</p>
+<ul>
+<li>generic_read: 遍历数据项 MVCC，找到离自己时间戳 lastest 的记录；</li>
+<li>generic_write: 先进行 FUW 判断自己是否回滚，然后安装最新的数据版本；</li>
+<li>ddam_get_schema: 通过系统表 catalog 的 MVCC 链表中寻找当前表最新可见的版本；</li>
+<li>ddam_update_schema: 在 catalog 中安装一个新的 schema 版本，同时复制数据到新版本的表中；</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NjhjNGYwNTA2NjhlOTNhZmUxNmYxMTJkMjlmYmI3NGVfcno2d0RZMXdKWUFuWE1JOWVtN3dtd05LbVBGeUJ3eGpfVG9rZW46RXVhOGI4U2dMb1dCR3B4UFJVNmNaNmYzbmdlXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>Goal: Execute DDL within transactions, committing with DML. Method: Extend Snapshot Isolation (SI) to support DDL via MVCC.</p>
+<h4 id="2-关键算法（Key-Algorithms）"><a href="#2-关键算法（Key-Algorithms）" class="headerlink" title="2. 关键算法（Key Algorithms）"></a>2. 关键算法（Key Algorithms）</h4><p>（1）通用 SI 协议（Generic SI Protocol）</p>
+<ul>
+<li><code>generic_read</code>: 基于 MVCC 找到 最新可见数据版本（按事务时间戳）。</li>
+<li><code>generic_write</code>: 先 检查写冲突（FUW），再安装新数据版本。</li>
+</ul>
+<p>（2）DDaM 扩展（DDaM Extensions）</p>
+<ul>
+<li><code>ddam_get_schema</code>: 从系统表 catalog 的 MVCC 链 中读取最新表结构。</li>
+<li><code>ddam_update_schema</code>:<ul>
+<li>在 catalog 中 新增 schema 版本。</li>
+<li>复制数据 到新版本表（保持一致性）。</li>
+</ul>
+</li>
+</ul>
+<p>（1）Generic SI:</p>
+<ul>
+<li><code>generic_read</code>: Find the latest visible data version via MVCC.</li>
+<li><code>generic_write</code>: Check conflicts (FUW), then commit new version.</li>
+</ul>
+<p>（2）DDaM Extensions:</p>
+<ul>
+<li><code>ddam_get_schema</code>: Read latest schema from catalog’s MVCC chain.</li>
+<li><code>ddam_update_schema</code>:<ul>
+<li>Add a new schema version to catalog.</li>
+<li>Copy data to the new schema table.</li>
+</ul>
+</li>
+</ul>
+<p>算法 2：DDaM 中（DDL+DML）事务对数据项的读写与提交</p>
+<ul>
+<li>ddam_read: 先使用 ddam_get_schema 获取最新可见的表模式，然后用读取表中数据项的可见版本；</li>
+<li>ddam_write: 先确保可见的表模式是不是最新的，不是则立刻回滚，是则对该表模式版本的数据项安装新版本</li>
+<li>ddam_commit: 首先获取全局最新时间戳，先检查事务写集与已提交事务是否冲突，冲突则回滚（乐观控制）</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NGY2NmI2OGMwYWFhYmQ5ZmY0MTk0M2FjNDExZTI2YThfTDZuUTU0alY4TTV1ekRMaFkwN2RzTFUxN3Bka1p3ZExfVG9rZW46Q3BXaWJTNVpCb2RUeHh4SmViaGNHa3BvbmZiXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<figure class="highlight ebnf"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ebnf"><span class="hljs-attribute">ddam_read</span><br></code></pre></td></tr></table></figure>
+
+<p>(1) Call <code>ddam_get_schema</code> to get the latest visible schema. (2) Read the latest visible version of data items (MVCC).</p>
+<p><code>ddam_write</code> (1) Validate schema freshness; abort if stale (prevents dirty writes). (2) If valid, install a new data version (under current schema).</p>
+<p><code>ddam_commit</code> (1) Acquire global latest timestamp (commit point). (2) Optimistic conflict check: Abort if write-set conflicts with committed transactions.</p>
+<h4 id="5-4-Basic-DDaM-存在的问题"><a href="#5-4-Basic-DDaM-存在的问题" class="headerlink" title="5.4 Basic DDaM 存在的问题"></a>5.4 Basic DDaM 存在的问题</h4><p>（1）DDL 操作很重，大量数据修改与迁移，造成数据项 写-写 冲突发生的可能性非常大，并发效率低；</p>
+<p>（2）由于是基于 SI 协议更改的，乐观控制最大的问题是两个事务在执行阶段都是正常的，但是提交阶段，如果 DML 事务先提交，而具有冲突的 DDL 事务在后面提交，根据 FUW，DDL 事务将被回滚，造成大量资源浪费；</p>
+<p>（3）不经优化的 DDaM，由于事务需要维护自己的写集，DDL 操作很重导致写集维护成本高昂；</p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=NmI3N2U2NTUyMTAyNTg2MDVkNmQ4NjI0ZDM2MTFlNTJfWGViN1JuVXRhVVI4elVDb3NKejFwZlQ4S25vSTY4dVFfVG9rZW46TFJ4aWI4TTlZb0cwcFJ4VllybWN6OXI4blliXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>Limitations of Basic DDaM</p>
+<p>\1. Heavy DDL Operations Impact Concurrency</p>
+<p>Issue: Mass data modification&#x2F;migration in DDL causes frequent write-write conflicts, significantly reducing throughput</p>
+<p>Technical impact: High abort rates under concurrent DML operations</p>
+<p>\2. Optimistic Control Commit Conflicts</p>
+<p>Issue: When conflicting DML commits first, subsequent DDL must abort (per First-Updater-Wins), wasting: ✓ Compute cycles ✓ I&#x2F;O bandwidth ✓ Schema change opportunities</p>
+<p>Core problem: No DDL prioritization mechanism</p>
+<p>\3. Excessive Write-Set Overhead</p>
+<p>Issue: Unoptimized DDL generates prohibitively large write-sets requiring: ✓ Extended memory allocation ✓ CPU-intensive version tracking</p>
+<p>Operational cost: O(n) scaling with table size</p>
+<h4 id="5-5-Relaxed-DDaM（优化版本）"><a href="#5-5-Relaxed-DDaM（优化版本）" class="headerlink" title="5.5  Relaxed DDaM（优化版本）"></a>5.5  Relaxed DDaM（优化版本）</h4><p>主要目的是解决 5.4 提出的挑战。</p>
+<p>完整执行流程如下：</p>
+<ul>
+<li>如果 DML 事务在准备提交的时候，探测到有未提交的 DDL 事务正在执行，进入预提交阶段；</li>
+<li>DML 事务的预提交阶段（与2PC不同）：DML 事务按照提交顺序放入全局管道（global pipeline），阻塞住，直到 DDL 事务完成 CDC 阶段，才能依次提交成功。</li>
+<li>DDL 事务在准备提交时候，先进入 CDC 阶段，执行完成后，先提交，之后放行全局管道内的事务，依据最新的 schema 变更批准 DML 事务提交或回滚。</li>
+</ul>
+<p>具体实现上的三个点：</p>
+<p>（1）Out-of-Place Migration</p>
+<ul>
+<li>DDL 事务创建新的数组存储数据版本，而非直接修改原数组；而 DML 事务则继续修改原数组；</li>
+</ul>
+<p>优点：</p>
+<ul>
+<li>DDL与DML事务分离的间接数组操作，避免同一个数据项的直接竞争；</li>
+<li>避免资源浪费，若 DDL 操作提交时验证失败回滚，不用回滚原数据项版本；</li>
+</ul>
+<p>（2）变更数据捕获（Change Data Capture）</p>
+<ul>
+<li>CDC 阶段的目的：捕获所有进入预提交 DML 事务，将它们的写集应用到新的 schema 上；</li>
+<li>若 DML 事务写集与这次模式变更存在冲突，DML 事务需要回滚；否则允许正常提交。</li>
+</ul>
+<p>优点：</p>
+<ul>
+<li>尽可能减少 DML 事务的回滚（即先试着让 DML 事务适应新模式变更，如果实在存在冲突，则回滚）</li>
+</ul>
+<p>（3）Relaxed Snapshots</p>
+<p>将 DDL 事务的新数组应用到版本链上：</p>
+<ul>
+<li>CDC 阶段结束后，通过原子操作将引用修改为新的数组（各数据项及其版本链）</li>
+</ul>
+<p>优点：</p>
+<ul>
+<li>DDL 事务执行过程中，无需再维护写集，减少开销。</li>
+</ul>
+<p>图b：T1 预提交后等待 T3 CDC 阶段的完成，T2 由于在 CDC 阶段兼容失败，T2 回滚。</p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=YzZmODgyMWM2MDcwN2Q5MDY5OGJiZjBkYzE1MGZhYjJfRjdEZ2h0SEo4Z1l5QXJ5bFFRRU5WTjR2QUpHaGxtUVpfVG9rZW46VklqeGI4ODVwb1FMRlF4eG9jYWN4eHZwblFnXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<ol>
+<li><h3 id="实验"><a href="#实验" class="headerlink" title="实验"></a>实验</h3></li>
+</ol>
+<p>BaseLine 与 对比对象：</p>
+<ul>
+<li>NoDDL: 没有 DDL 的 ERMIA 系统，仅执行 DML 事务；</li>
+<li>Blocking：用表锁控制 DDL 与 DML 的进行；</li>
+<li>Lazy：在 Blocking 实现的基础上，DDL 事务中仅记录 schema 更改元信息，数据迁移在后台进行；</li>
+<li>Tesseract：本文</li>
+<li>Tesseract-lazy：在 Tesseract 实现的基础上，数据迁移在后台进行；</li>
+</ul>
+<p>（由于 Basic DDaM 未做优化，高并发情况下 DDL 事务大量回滚，性能过差，故实验章节不讲）</p>
+<p>测试方法和指标：</p>
+<ul>
+<li>由于数据量庞大，每个并发负载只发出一个 DDL 事务；</li>
+<li>每秒吞吐 TPS</li>
+<li>YCSB（MicroBenchmark）</li>
+<li>TPCC + 自定义的一组 DDL 操作，下称 TPC-CD</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ZThmOTRkMTY1NGI2OWY0NzIzOTFkNjE2NGI3MDI5YzZfZ3dSMjlDTFoyMDdpZ0k1UWhxZjRRSmRLb2xmSjF2R09fVG9rZW46TUJDU2JmRFM3bzFLMUd4ckF2Y2NScjV5bmllXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=M2U1OWFmNmU4OGQ4MjMwMDliODFjYmY3MGMyMzAxNGZfMTlrdVVMSFRXbGxUM3hLV0Y0Zld3OTVZbE9HVENqRlBfVG9rZW46UTN3UGJsZmNYb1I5WE54TE5iYWNTM1lFbmtoXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=Y2MyOTkxZDZlZDAzYzY4YzQwZDAwZDY3YWM5MDRmMGNfSE9FVnM0MkpCZ0pia1R6VHZNd240MnY2QTV6dWE2ekFfVG9rZW46TW9zM2JvYmtkb252VW14a3I1OGNwc1dvbjVjXzE3NDkzNzE3NTc6MTc0OTM3NTM1N19WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/transaction/" class="print-no-link">#transaction</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>DDaM Online DDL 事务优化 (VLDB 23)</div>
+      <div>https://yanghy233.github.io/2025/06/08/DDaM-VLDB/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2025年6月8日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/10/26/adoc-FAST/" title="ADOC LSM-Tree (FAST 23) 论文笔记">
+                        <span class="hidden-mobile">ADOC LSM-Tree (FAST 23) 论文笔记</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

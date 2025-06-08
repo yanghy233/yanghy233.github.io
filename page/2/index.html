@@ -226,8 +226,254 @@
     <article class="col-12 col-md-12 mx-auto index-info">
       <h2 class="index-header">
         
+        <a href="/2024/04/16/Hackwrench/" target="_self">
+          HackWrench 细粒度分布式事务提交 (VLDB 23)
+        </a>
+      </h2>
+
+      
+      <a class="index-excerpt index-excerpt__noimg" href="/2024/04/16/Hackwrench/" target="_self">
+        <div>
+          Fine-Grained Re-Execution for Efficient Batched Commit of Distributed Transactions （VLDB 23） 通过细粒度重新执行的方式实现分布式事务的高效提交1 介绍分布式OLTP系统通常需要横跨多个节点来提交一个可串行化的事务； 近10年来有很多分布式的OLTP被提出，包括 Spanner，CockroachDB，Fou
+        </div>
+      </a>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2024-04-16 21:26" pubdate>
+              2024-04-16
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3 d-flex align-items-center">
+            <i class="iconfont icon-category"></i>
+            
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/transaction/">#transaction</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h2 class="index-header">
+        
+        <a href="/2024/04/16/lsm-tree/" target="_self">
+          LSM-Tree 笔记
+        </a>
+      </h2>
+
+      
+      <a class="index-excerpt index-excerpt__noimg" href="/2024/04/16/lsm-tree/" target="_self">
+        <div>
+          LSM-Tree ( log structured merged tree )  1  在 OLTP 里数据存储分为两种： 面向页的存储引擎：innodb（B+ tree） 面向日志结构的存储引擎：leveldb（lsm tree）   2  LSM-Tree 用于解决什么问题？用在什么场景？写多读少的场景  海量数据存储 日志系统 推荐系统   数据需要大量写入 存在少部分读数据的场景，但大部分
+        </div>
+      </a>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2024-04-16 21:22" pubdate>
+              2024-04-16
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3 d-flex align-items-center">
+            <i class="iconfont icon-category"></i>
+            
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/LSM-Tree/">#LSM-Tree</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h2 class="index-header">
+        
+        <a href="/2024/04/16/transaction-isolation/" target="_self">
+          A Critique of ANSI SQL Isolation Levels 论文笔记
+        </a>
+      </h2>
+
+      
+      <a class="index-excerpt index-excerpt__noimg" href="/2024/04/16/transaction-isolation/" target="_self">
+        <div>
+          A Critique of ANSI SQL Isolation Levels 经典论文2.1、基本定义history：将多个事务的多个操作交替执行的序列建模为一个线性的执行顺序，如 R1,W2,R2,W1 conflict：两个事务操作同一个data item，且其中一个是写操作 data item：可能是表的一个元组，一个逻辑页面，或一个完整的关系表，或队列中的消息等 dependency g
+        </div>
+      </a>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2024-04-16 21:17" pubdate>
+              2024-04-16
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3 d-flex align-items-center">
+            <i class="iconfont icon-category"></i>
+            
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/transaction/">#transaction</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h2 class="index-header">
+        
+        <a href="/2024/04/16/6-824-raft-%E7%AC%94%E8%AE%B0/" target="_self">
+          6.824-raft-笔记
+        </a>
+      </h2>
+
+      
+      <a class="index-excerpt index-excerpt__noimg" href="/2024/04/16/6-824-raft-%E7%AC%94%E8%AE%B0/" target="_self">
+        <div>
+          Raft算法中服务器的三种角色  Follower Candidate Leader  每台服务器需要维护的变量 每个节点的持久状态：  currentTerm: 当前节点位于的最大的Term任期，初始化为0，单调递增 log []Entry : 日志条目(每条日志条目包含命令和任期) votedFor: 可以理解为当前任期 支持的候选者 或 当前整个系统的leader   votedFor 一开
+        </div>
+      </a>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2024-04-16 21:07" pubdate>
+              2024-04-16
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3 d-flex align-items-center">
+            <i class="iconfont icon-category"></i>
+            
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/6-824/" class="category-chain-item">6.824</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/raft/">#raft</a>
+            
+              <a href="/tags/6-824/">#6.824</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h2 class="index-header">
+        
         <a href="/2024/03/16/ELECT/" target="_self">
-          Enabling Erasure Coding Tiering for LSM-tree-based Storage (Fast 24) 论文阅读
+          Enabling Erasure Coding Tiering for LSM-tree-based Storage (Fast 24)
         </a>
       </h2>
 

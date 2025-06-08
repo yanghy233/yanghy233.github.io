@@ -1,0 +1,872 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="yanghy">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="一篇针对 LSM-Tree write stall 的 study，对写停滞原因进行了深入分析，证实之前这方面的一些研究是存在缺陷的。通过在多种存储设备上进行实验，总结出了写停滞的根本来源，即：data overflow； Data Overflow：指的是由于数据流入LSM-KV系统的某个组件而导致一个或多个组件的快速扩张； 作者的方法：通过平衡和协调组件之间的数据流,能够减少数据溢出,从而减少">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ADOC LSM-Tree (FAST 23) 论文笔记">
+<meta property="og:url" content="https://yanghy233.github.io/2024/10/26/adoc-FAST/index.html">
+<meta property="og:site_name" content="yanghy的博客">
+<meta property="og:description" content="一篇针对 LSM-Tree write stall 的 study，对写停滞原因进行了深入分析，证实之前这方面的一些研究是存在缺陷的。通过在多种存储设备上进行实验，总结出了写停滞的根本来源，即：data overflow； Data Overflow：指的是由于数据流入LSM-KV系统的某个组件而导致一个或多个组件的快速扩张； 作者的方法：通过平衡和协调组件之间的数据流,能够减少数据溢出,从而减少">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ODljYjc2ZDJhMmJmYzZlNzE0OGEyNzcyNzE5OGViMzNfb053ZGpETjVQVXdyQWxzc2pTRzFBSjNqSVpiVTMzWG5fVG9rZW46UndwbGJSaXdRb1NMTlJ4VFJibGM5WWxWbnljXzE3NDkzNzE3MzE6MTc0OTM3NTMzMV9WNA">
+<meta property="og:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=MjY3N2Q5YjM5MWM1MWFiMDQ4ODUwOWZjZjQyZWMzMDFfcEQySW5xaWdLY3RNbFcybjJ5S1haUGRsdVNjNWtzRDBfVG9rZW46RmpveWJkcFlGb3c0WXV4M242OGNSMUZ5bmpoXzE3NDkzNzE3MzE6MTc0OTM3NTMzMV9WNA">
+<meta property="article:published_time" content="2024-10-26T08:40:32.000Z">
+<meta property="article:modified_time" content="2025-06-08T08:41:51.152Z">
+<meta property="article:author" content="yanghy">
+<meta property="article:tag" content="LSM-Tree">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ODljYjc2ZDJhMmJmYzZlNzE0OGEyNzcyNzE5OGViMzNfb053ZGpETjVQVXdyQWxzc2pTRzFBSjNqSVpiVTMzWG5fVG9rZW46UndwbGJSaXdRb1NMTlJ4VFJibGM5WWxWbnljXzE3NDkzNzE3MzE6MTc0OTM3NTMzMV9WNA">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>ADOC LSM-Tree (FAST 23) 论文笔记 - yanghy的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"yanghy233.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="ADOC LSM-Tree (FAST 23) 论文笔记"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-10-26 16:40" pubdate>
+          2024年10月26日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          1.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          14 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">ADOC LSM-Tree (FAST 23) 论文笔记</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>一篇针对 LSM-Tree write stall 的 study，对写停滞原因进行了深入分析，证实之前这方面的一些研究是存在缺陷的。通过在多种存储设备上进行实验，总结出了写停滞的根本来源，即：data overflow；</p>
+<p>Data Overflow：指的是由于数据流入LSM-KV系统的某个组件而导致一个或多个组件的快速扩张；</p>
+<p>作者的方法：通过平衡和协调组件之间的数据流,能够减少数据溢出,从而减少写入停顿；</p>
+<p>提出 ADOC 自动数据溢出控制框架，自动调整系统配置，主要两个参数：线程数和 batch size</p>
+<p>以最小化每个组件的 data overflow。</p>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=ODljYjc2ZDJhMmJmYzZlNzE0OGEyNzcyNzE5OGViMzNfb053ZGpETjVQVXdyQWxzc2pTRzFBSjNqSVpiVTMzWG5fVG9rZW46UndwbGJSaXdRb1NMTlJ4VFJibGM5WWxWbnljXzE3NDkzNzE3MzE6MTc0OTM3NTMzMV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>图1：无论是哪种存储设备，只要不使用流量控制，强如 PM 持久化内存，也无法避免大量写压力下造成的写停滞。</p>
+<h3 id="先前的研究"><a href="#先前的研究" class="headerlink" title="先前的研究"></a>先前的研究</h3><p>总结了先前的研究分析写停滞有三种类型：</p>
+<ul>
+<li>Memtable Stall：比如，RocksDB 将 Memtable 的数量设置为 2,当两个都填满时,系统输入就会停止,导致停顿；</li>
+<li>level-0，level-1 compaction：当 L0 文件数量达到设定阈值（20个）时,LSM-KV 会减慢或甚至停止输入流,导致停顿；</li>
+<li>Pending Input Size (PS) stall：待压缩作业任务的处理字节数达到 64GB 和 128GB 时，分别用于减速和停止系统的前台写入。（待压缩字节数）目的是避免深层压缩作业发生时磁盘带宽突增。</li>
+</ul>
+<p>接下来，对先前的研究结论进行实验分析，主要考虑两个参数：</p>
+<ul>
+<li>系统中并发运行的线程数<ul>
+<li>影响的资源：CPU 时间、占用的带宽</li>
+</ul>
+</li>
+<li>批处理大小：memtable 大小、个数；SST 大小、个数<ul>
+<li>影响后台任务的调度模式和输入规模</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://yuvroz7wcm.feishu.cn/space/api/box/stream/download/asynccode/?code=MjY3N2Q5YjM5MWM1MWFiMDQ4ODUwOWZjZjQyZWMzMDFfcEQySW5xaWdLY3RNbFcybjJ5S1haUGRsdVNjNWtzRDBfVG9rZW46RmpveWJkcFlGb3c0WXV4M242OGNSMUZ5bmpoXzE3NDkzNzE3MzE6MTc0OTM3NTMzMV9WNA" srcset="/img/loading.gif" lazyload alt="img"></p>
+<p>1、一些研究认为资源耗尽是导致 write stall 的根本原因，资源耗尽包括：</p>
+<ul>
+<li>带宽有限以及争用，会导致提供给后台 compaction 的带宽不足；</li>
+<li>CPU 资源有限，高 CPU 开销是写停顿的一个原因；</li>
+</ul>
+<p>2、一些研究认为 L0-L1 压缩过程是导致 write stall 的根本原因：</p>
+<ul>
+<li>L0 到 L1 的 compaction 只能串行执行，因为 L0 层每个 SST File 可能包含相同的 key；</li>
+</ul>
+<p>3、另一些研究认为是深层次的压缩过程是导致 write stall 的根本原因：</p>
+<ul>
+<li>深层次的 Compaction 任务的高资源消耗和其他后台任务竞争，造成了写停顿；</li>
+</ul>
+<p>Some previous studies found the root cause of write stalls:</p>
+<p>(1) Resource Exhaustion.</p>
+<ul>
+<li>Limited bandwidth and contention, which leads to insufficient bandwidth for background compaction.</li>
+<li>Limited CPU resources, where high CPU overhead is one cause of write stalls.</li>
+</ul>
+<p>(2) L0-L1 Compaction Data Movement.</p>
+<ul>
+<li>L0 to L1 compaction can only be executed serially because each SST File in the L0 layer may contain identical keys.</li>
+</ul>
+<p>(3) Deep Level Compaction Data Movement.</p>
+<ul>
+<li>High resource consumption of deep-level compaction tasks and competition with other background tasks cause write stalls;</li>
+</ul>
+<p>Observations. </p>
+<ul>
+<li>For PM and NVMe SSD, the stall duration decreases as the thread count increases until up to four threads.</li>
+<li>Write stall occurrences start to drop, while the stall duration increases, as the thread count beyond six.</li>
+<li>The number of threads increases, the CPU utilization decreases.</li>
+</ul>
+<p>Conclusion.</p>
+<ul>
+<li>Limited CPU resources may be a cause of write stall in certain scenarios, but it is not universally applicable.</li>
+</ul>
+<p>结论：有限的 CPU 资源可能在某些场景下是写停顿的原因，但是并不普适。</p>
+<p>当增加batch size大小时，write stall 发生次数和持续时间都显著降低，但 CPU 利用率没有什么变化</p>
+<p>结论2：即使 CPU 利用率很高，仅通过增加批处理大小就可以减少写入停顿。也就是说，CPU 利用率和写停顿是没有那么高的相关性</p>
+<p>Observation. </p>
+<ul>
+<li>When increasing the batch size, both the frequency and duration of write stalls significantly decrease, while CPU utilization remains unchanged.</li>
+</ul>
+<p>Conclusion.</p>
+<ul>
+<li>Even with high CPU utilization, write stalls can be reduced simply by increasing the batch size.</li>
+<li>This indicates that there isn’t a strong correlation between CPU utilization and write stalls.</li>
+</ul>
+<p>先前研究认为随着线程数的增加，磁盘带宽饱和，不堪重负，导致写停顿；</p>
+<p>如果写停顿是因为带宽不足，设备应长时间处于高写入压力下，平均带宽应接近理论值；</p>
+<p>但事实是，即使磁盘空闲，有空闲带宽，也会发生写停顿。</p>
+<p>Previous research suggests that,</p>
+<ul>
+<li>As the number of threads increases, disk bandwidth becomes overwhelmed, leading to write stalls.</li>
+</ul>
+<p>If write stalls were caused by insufficient bandwidth:</p>
+<ul>
+<li>The device should experience sustained high write pressure.</li>
+<li>Average bandwidth utilization should approach theoretical maximum values.</li>
+</ul>
+<p>Actual Observation.</p>
+<ul>
+<li>write stalls occur even when the disk is idle and has available bandwidth.</li>
+</ul>
+<p>Observation. </p>
+<ul>
+<li><p>In the early execution stages, performance valleys in NVMe SSD and PM match the occurrence of Compaction.</p>
+</li>
+<li><p>The correlation between performance troughs and L0-L1 merge operations weakens over time.</p>
+</li>
+<li><p>在执行的早期阶段，NVMe SSD 和 PM 中的性能波谷与 Compaction 的发生相匹配</p>
+</li>
+<li><p>性能低谷和 L0-L1 合并作业之间的对应关系会随着时间的推移而减弱</p>
+</li>
+</ul>
+<p>Observation. </p>
+<ul>
+<li><p>When more threads are generated for Compaction jobs, the processing speed of flush operations decreases.</p>
+</li>
+<li><p>As the number of threads increases, the occurrence of PS stall (Pending Size Stall) caused by slow compaction decreases.</p>
+</li>
+<li><p>当生成更多线程用于压缩 Compaction 作业时，刷新 flush 作业 的处理速度会降低</p>
+</li>
+<li><p>随着线程数量的增加，由缓慢压缩引起的 PS stall (Pending Size Stall)的发生减少</p>
+</li>
+</ul>
+<p>PS stall triggered when the volume of pending compaction data (pending bytes) exceeds the threshold.</p>
+<p>The main purpose is to prevent excessive accumulation of redundant data in the system.</p>
+<p>RocksDB default thresholds: </p>
+<ul>
+<li>soft limit (slows down writes): 64GB</li>
+<li>hard limit (completely stops): 128GB</li>
+</ul>
+<p>Data overflow Definition.</p>
+<ul>
+<li>The sudden surge in data flow into one of the components leads to rapid expansion of one or multiple components.</li>
+</ul>
+<p>It happens when the processing rates of different background jobs do not match each other.</p>
+<p>Three types of data overflow:</p>
+<ul>
+<li><strong>Memory Overflow</strong> (MMO): When the system input rate exceeds the immutable Memtable Flush rate.</li>
+<li><strong>Level 0 Overflow</strong> (L0O): When the L0-L1 merge processing rate cannot match the flush rate.</li>
+<li><strong>Redundancy Overflow</strong> (RDO): When the merge threads’ work efficiency cannot match the rate at which redundant data is generated.</li>
+</ul>
+<p>对三种 data overflow 分别进行处理：</p>
+<ul>
+<li>MMO：当 immemtable 数量达到阈值时，ADOC 通过减少线程数量来提高刷写速率，这将为 flush job预留更多带宽，并通过增加 batch size来提高处理速率</li>
+<li>L0O：若 L0 文件数量超过阈值，ADOC 会增加线程的数量。这可以提高为 L0-L1 压缩分配线程的机会，并降低刷写速率以缓解溢出。</li>
+<li>RDO：当总冗余数据大小超过阈值 (RocksDB 默认为64GB) 时，ADOC 会增加线程数并降低批量大小。前者提高了深层合并的速率(同时也降低了刷写速率)，后者允许调度器生成更细粒度的合并作业，因为小而密集的合并作业有助于提高冗余缩减的效率</li>
+</ul>
+<p>Handling three types of data overflow:</p>
+<ul>
+<li><p>MMO (Memory Management Overflow):</p>
+<ul>
+<li>When immemtable count reaches threshold, ADOC reduces thread count to increase flush rate.</li>
+<li>Increases batch size (memtable size) to improve processing rate.</li>
+</ul>
+</li>
+<li><p>L0O (Level 0 Overflow):</p>
+<ul>
+<li>When L0 file count exceeds threshold, ADOC increases thread count.</li>
+<li>This improves chances of allocating threads for L0-L1 compaction, and reduces flush rate to alleviate overflow.</li>
+</ul>
+</li>
+<li><p>RDO (Redundant Data Overflow):</p>
+<ul>
+<li>Triggered when total redundant data size exceeds threshold (RocksDB default: 64GB)</li>
+<li>ADOC increases thread count and reduces batch size (SST file size).</li>
+<li>More threads improve deep merge rate (while reducing flush rate).</li>
+</ul>
+</li>
+<li><p>首先当刷新的速度不够高导致不能及时持久化输入请求的时候，MMO 将导致暂停输入;</p>
+</li>
+<li><p>随着线程数的增加，更多线程强制共享有限的带宽，导致更少的带宽分配给 flush 线程，导致了 Immutable 不能被及时刷回。</p>
+</li>
+<li><p>在执行的更早阶段，因为深层次的数据还没有聚集，L0-L1 的合并很容易分配给一个线程，因此早期 Compaction 和 Write Stall 是匹配的。</p>
+</li>
+<li><p>然而 随着继续执行，数据开始聚集然后有了更多深层次的 Compaction 请求。在线程数量有限的情况下，这减少 L0-L1 合并分配给线程的机会，因此这时候开始不匹配。</p>
+</li>
+<li><p>Write stall duration (bar) and occurrences (lines).</p>
+</li>
+<li><p>Tuning actions during one-hour execution.</p>
+</li>
+<li><p>Write Stall 的本质：由于流入某一个组件的数据量激增，导致某一个或多个组件迅速膨胀。</p>
+</li>
+<li><p>ADOC 仅动态控制 线程数 和 batch size 是无法完全解决 write stall 的，只能缓解。</p>
+</li>
+<li><p>图1描述了流量控制是能解决 write stall 的，但如果将前台流量设置成定值，反而适得其反。</p>
+<ul>
+<li>ICDE 21 CruiseDB 用的就是流量控制，但由于建模有些许缺陷，存在改进的空间；</li>
+<li>如何设计一个更优秀的流量控制反馈模型，是解决 write stall 的关键。</li>
+</ul>
+</li>
+</ul>
+<p>停顿持续时间的决定因素： </p>
+<ul>
+<li>大规模操作会导致更长的停顿：L0-L1 &gt; 深度压缩 &gt; Flush；</li>
+<li>并行度越差，停顿时间越长：Flush &lt; L0-L1 &lt; 深度压缩；</li>
+<li>较慢的flush速率会导致更多MMO，减少LOO；</li>
+<li>更高的并行性（compaction thread increase），更少的 RDO</li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB/" class="category-chain-item">论文阅读</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/LSM-Tree/" class="print-no-link">#LSM-Tree</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>ADOC LSM-Tree (FAST 23) 论文笔记</div>
+      <div>https://yanghy233.github.io/2024/10/26/adoc-FAST/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>yanghy</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年10月26日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2025/06/08/DDaM-VLDB/" title="DDaM Online DDL 事务优化 (VLDB 23)">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">DDaM Online DDL 事务优化 (VLDB 23)</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/10/22/lsm-tree-schedule/" title="LSM-Tree 缓解写放大 论文笔记">
+                        <span class="hidden-mobile">LSM-Tree 缓解写放大 论文笔记</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://github.com/yanghy233" target="_blank" rel="nofollow noopener"><span>Github</span></a> <i class="iconfont icon-love"></i> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
